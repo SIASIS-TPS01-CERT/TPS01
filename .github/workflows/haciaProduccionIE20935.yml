@@ -1,0 +1,52 @@
+name: Sync to Production Repositories
+
+on:
+  repository_dispatch:
+    types: [hacia-producccion-ie20935]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "SIASIS IE20935 Sync Bot"
+          git config --global user.email "siasis-sync-from-certificacion@asuncion8.edu.pe"
+
+      # Repositorio 1
+      - name: Push to Repository 1
+        run: |
+          echo "Configurando repositorio de destino 1..."
+          mkdir -p temp-repo1
+          cd temp-repo1
+          git clone https://x-access-token:${{ secrets.SIASIS_TPS01_REPOSITORIO_PRODUCCION_IE20935_PAT }}@github.com/SIASIS-TPS01-IE20935/TPS01.git .
+
+          echo "Limpiando repositorio destino 1 (excepto .git)..."
+          find . -mindepth 1 -maxdepth 1 -not -path "./.git" -exec rm -rf {} \;
+
+          echo "Copiando contenido actual sobre el repositorio destino 1..."
+          find .. -mindepth 1 -maxdepth 1 -not -path "../.git" -not -path "../temp-repo1" -not -path "../temp-repo2" -not -path "../temp-repo3" -not -path "../temp-repo4" -not -path "../temp-repo5" -exec cp -r {} . \;
+
+          echo "Verificando cambios en repositorio 1..."
+          git status
+
+          echo "Añadiendo todos los cambios..."
+          git add -A
+
+          echo "Creando commit con los cambios..."
+          if git diff --staged --quiet; then
+            echo "No hay cambios para sincronizar en repositorio 1"
+          else
+            git commit -m "Sync changes from siu01 cert branch (includes deleted files)"
+            echo "Haciendo push de los cambios al repositorio destino 1..."
+            git push origin master
+          fi
+
+          cd ..
+        continue-on-error: true
