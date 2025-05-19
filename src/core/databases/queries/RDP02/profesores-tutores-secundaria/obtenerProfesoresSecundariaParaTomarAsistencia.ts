@@ -1,8 +1,10 @@
+import { T_Vacaciones_Interescolares } from "@prisma/client";
 import { DURACION_HORA_ACADEMICA_EN_MINUTOS } from "../../../../../constants/DURACION_HORA_ACADEMICA_EN_MINUTOS";
 import { ProfesorTutorSecundariaParaTomaDeAsistencia } from "../../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
+import { extraerHora } from "../../../../utils/dates/modificacionFechas";
 import { verificarDentroSemanaGestion } from "../../../../utils/verificators/verificarDentroSemanaGestion";
 import { verificarDentroVacacionesInterescolares } from "../../../../utils/verificators/verificarDentroVacacionesInterescolares";
-import RDP02_DB_INSTANCES from '../../../connectors/postgres';
+import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
 /**
  * Calcula el horario considerando los recreos
@@ -22,47 +24,68 @@ function calcularHoraConRecreo(
   duracionHoraAcademicaMinutos: number,
   esHoraSalida: boolean = false
 ): Date {
-  // Validar índice para asegurarnos que está dentro del rango permitido (1-7)
-  const indiceValido = Math.max(1, Math.min(indice, 7));
+  try {
+    // Validar índice para asegurarnos que está dentro del rango permitido (1-7)
+    const indiceValido = Math.max(1, Math.min(indice, 7));
 
-  const resultado = new Date(horaBaseDate);
+    console.log(
+      `Calculando hora con recreo: Índice ${indice} (válido: ${indiceValido}), bloque recreo: ${bloqueInicioRecreo}, duración recreo: ${duracionRecreoMinutos}min, duración hora: ${duracionHoraAcademicaMinutos}min, es salida: ${esHoraSalida}`
+    );
 
-  // Determinar cuántos minutos adicionar considerando el recreo
-  let minutosAdicionales = 0;
+    const resultado = new Date(horaBaseDate);
 
-  if (indiceValido <= bloqueInicioRecreo) {
-    // Para bloques antes o igual al bloque de recreo
-    minutosAdicionales = (indiceValido - 1) * duracionHoraAcademicaMinutos;
+    // Determinar cuántos minutos adicionar considerando el recreo
+    let minutosAdicionales = 0;
 
-    // Si es hora de salida, añadir la duración del bloque para obtener la hora de finalización
-    if (esHoraSalida) {
-      minutosAdicionales += duracionHoraAcademicaMinutos;
+    if (indiceValido <= bloqueInicioRecreo) {
+      // Para bloques antes o igual al bloque de recreo
+      minutosAdicionales = (indiceValido - 1) * duracionHoraAcademicaMinutos;
+
+      // Si es hora de salida, añadir la duración del bloque para obtener la hora de finalización
+      if (esHoraSalida) {
+        minutosAdicionales += duracionHoraAcademicaMinutos;
+      }
+    } else {
+      // Para bloques después del recreo
+      minutosAdicionales =
+        (indiceValido - 1) * duracionHoraAcademicaMinutos +
+        duracionRecreoMinutos;
+
+      // Si es hora de salida, añadir la duración del bloque para obtener la hora de finalización
+      if (esHoraSalida) {
+        minutosAdicionales += duracionHoraAcademicaMinutos;
+      }
     }
-  } else {
-    // Para bloques después del recreo
-    minutosAdicionales =
-      (indiceValido - 1) * duracionHoraAcademicaMinutos + duracionRecreoMinutos;
 
-    // Si es hora de salida, añadir la duración del bloque para obtener la hora de finalización
+    // Extraer horas y minutos de la hora base
+    const horaBase = horaBaseDate.getHours();
+    const minutosBase = horaBaseDate.getMinutes();
+
+    // Calcular nueva hora y minutos
+    const totalMinutos = minutosBase + minutosAdicionales;
+    const nuevosMinutos = totalMinutos % 60;
+    const horasAdicionales = Math.floor(totalMinutos / 60);
+    const nuevaHora = horaBase + horasAdicionales;
+
+    // Configurar el resultado
+    resultado.setHours(nuevaHora, nuevosMinutos, 0, 0);
+
+    console.log(
+      `Resultado de calcularHoraConRecreo: ${resultado.toISOString()}`
+    );
+
+    return resultado;
+  } catch (error) {
+    console.error("Error en calcularHoraConRecreo:", error);
+
+    // En caso de error, devolver una fecha de fallback
+    const fallback = new Date(horaBaseDate);
     if (esHoraSalida) {
-      minutosAdicionales += duracionHoraAcademicaMinutos;
+      // Si es hora de salida, agregamos algunas horas como fallback
+      fallback.setHours(fallback.getHours() + 5, 0, 0, 0);
     }
+    return fallback;
   }
-
-  // Extraer horas y minutos de la hora base
-  const horaBase = horaBaseDate.getHours();
-  const minutosBase = horaBaseDate.getMinutes();
-
-  // Calcular nueva hora y minutos
-  const totalMinutos = minutosBase + minutosAdicionales;
-  const nuevosMinutos = totalMinutos % 60;
-  const horasAdicionales = Math.floor(totalMinutos / 60);
-  const nuevaHora = horaBase + horasAdicionales;
-
-  // Configurar el resultado
-  resultado.setHours(nuevaHora, nuevosMinutos, 0, 0);
-
-  return resultado;
 }
 
 /**
@@ -75,7 +98,7 @@ function calcularHoraConRecreo(
  */
 export async function obtenerProfesoresSecundariaParaTomarAsistencia(
   fecha: Date,
-  vacacionesInterescolares: any[],
+  vacacionesInterescolares: T_Vacaciones_Interescolares[],
   semanaGestion: any | null,
   horariosEspeciales?: {
     inicio?: Date;
@@ -84,112 +107,168 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
   }
 ): Promise<ProfesorTutorSecundariaParaTomaDeAsistencia[]> {
   try {
+    console.log("==========================================");
+    console.log(
+      "obtenerProfesoresSecundariaParaTomarAsistencia - Fecha:",
+      fecha?.toISOString()
+    );
+    console.log(
+      "Vacaciones interescolares recibidas:",
+      vacacionesInterescolares?.length
+    );
+    console.log(
+      "Semana gestión recibida:",
+      semanaGestion ? "Presente" : "No presente"
+    );
+    console.log("==========================================");
+
     // Verificar si estamos en vacaciones interescolares o semana de gestión
     const enVacacionesInterescolares = verificarDentroVacacionesInterescolares(
-      fecha, 
+      fecha,
       vacacionesInterescolares
     );
 
-    const enSemanaGestion = verificarDentroSemanaGestion(
-      fecha, 
-      semanaGestion
+    const enSemanaGestion = verificarDentroSemanaGestion(fecha, semanaGestion);
+
+    console.log("Estado períodos especiales:", {
+      enVacacionesInterescolares,
+      enSemanaGestion,
+    });
+
+    // Obtener el día de la semana correctamente, considerando que la fecha puede estar en UTC
+    // 1. Extraer componentes individuales como año, mes, día de la fecha UTC
+    const añoUTC = fecha.getUTCFullYear();
+    const mesUTC = fecha.getUTCMonth();
+    const diaUTC = fecha.getUTCDate();
+
+    // 2. Crear una nueva fecha local con estos componentes para eliminar cualquier problema de zona horaria
+    const fechaLocal = new Date(añoUTC, mesUTC, diaUTC, 12, 0, 0); // Usamos mediodía para evitar problemas con cambios de día por zona horaria
+
+    // 3. Obtener el día de la semana de esta fecha local
+    const diaSemana = fechaLocal.getDay(); // 0-6, 0 siendo domingo
+
+    // 4. Convertir para el formato BD (1-7, donde 1 es lunes y 7 es domingo)
+    const diaSemanaDB = diaSemana === 0 ? 7 : diaSemana;
+
+    console.log(`Fecha analizada: ${fechaLocal.toDateString()}`);
+    console.log(`Día de la semana (0-6): ${diaSemana}`);
+    console.log(`Día de la semana para BD (1-7): ${diaSemanaDB}`);
+
+    // IMPORTANTE: Siempre obtenemos SOLO profesores que tienen cursos para ese día,
+    // independientemente de si estamos en período especial o no
+    const profesoresQuery = `
+      SELECT 
+        ps."DNI_Profesor_Secundaria", 
+        ps."Nombres", 
+        ps."Apellidos", 
+        ps."Genero", 
+        ps."Google_Drive_Foto_ID",
+        MIN(ch."Indice_Hora_Academica_Inicio") as "Indice_Entrada",
+        MAX(ch."Indice_Hora_Academica_Inicio" + ch."Cant_Hora_Academicas") as "Indice_Salida"
+      FROM "T_Profesores_Secundaria" ps
+      JOIN "T_Cursos_Horario" ch ON ps."DNI_Profesor_Secundaria" = ch."DNI_Profesor_Secundaria"
+      WHERE ps."Estado" = true AND ch."Dia_Semana" = $1
+      GROUP BY ps."DNI_Profesor_Secundaria", ps."Nombres", ps."Apellidos", ps."Genero", ps."Google_Drive_Foto_ID"
+    `;
+
+    const profesoresResult = await RDP02_DB_INSTANCES.query(profesoresQuery, [
+      diaSemanaDB,
+    ]);
+    console.log(
+      `Encontrados ${profesoresResult.rows.length} profesores con cursos para el día ${diaSemanaDB}`
     );
 
-    // Si estamos en un periodo especial, usamos los horarios especiales
+    // Si no hay profesores con cursos este día, retornar array vacío
+    if (profesoresResult.rows.length === 0) {
+      console.log(
+        "No se encontraron profesores con cursos para este día. Retornando array vacío."
+      );
+      return [];
+    }
+
+    // Si estamos en un periodo especial (vacaciones o semana de gestión)
+    // Sobrescribimos los horarios, pero mantenemos la misma lista de profesores
     if (enVacacionesInterescolares || enSemanaGestion) {
-      let horaInicio: Date | null = null;
-      let horaFin: Date | null = null;
+      let horaInicioStr: string | null = null;
+      let horaFinStr: string | null = null;
 
-      // Si nos pasaron horarios especiales preconsultados, los usamos
-      if (horariosEspeciales && horariosEspeciales.inicio && horariosEspeciales.fin) {
-        horaInicio = horariosEspeciales.inicio;
-        horaFin = horariosEspeciales.fin;
-      } else {
-        // Si no tenemos horarios preconsultados, debemos consultarlos
-        const periodoTipo = enVacacionesInterescolares
-          ? "Vacaciones_Interescolares"
-          : "Semana_Gestion";
+      // Determinar qué período estamos manejando
+      const periodoTipo = enVacacionesInterescolares
+        ? "Vacaciones_Interescolares"
+        : "Semana_Gestion";
 
-        // Consulta para obtener los horarios especiales
-        const horariosEspecialesQuery = `
-          SELECT 
-            "Nombre", "Valor"
-          FROM 
-            "T_Horarios_Asistencia"
-          WHERE 
-            "Nombre" IN (
-              'Inicio_Horario_Laboral_Para_Personal_General_${periodoTipo}',
-              'Fin_Horario_Laboral_Para_Personal_General_${periodoTipo}'
-            )
-        `;
+      // Consulta para obtener los horarios específicos
+      const horariosEspecialesQuery = `
+        SELECT 
+          "Nombre", "Valor"
+        FROM 
+          "T_Horarios_Asistencia"
+        WHERE 
+          "Nombre" IN (
+            'Inicio_Horario_Laboral_Para_Personal_General_${periodoTipo}',
+            'Fin_Horario_Laboral_Para_Personal_General_${periodoTipo}'
+          )
+      `;
 
-        const horariosEspecialesResult = await RDP02_DB_INSTANCES.query(horariosEspecialesQuery);
+      const horariosEspecialesResult = await RDP02_DB_INSTANCES.query(
+        horariosEspecialesQuery
+      );
+      console.log(
+        `Resultados horarios especiales ${periodoTipo}:`,
+        horariosEspecialesResult.rows
+      );
 
-        // Extraer los valores
-        for (const row of horariosEspecialesResult.rows) {
-          if (row.Nombre.includes("Inicio")) {
-            horaInicio = new Date(row.Valor);
-          } else if (row.Nombre.includes("Fin")) {
-            horaFin = new Date(row.Valor);
-          }
+      // Extraer los valores
+      for (const row of horariosEspecialesResult.rows) {
+        if (row.Nombre.includes("Inicio")) {
+          horaInicioStr = extraerHora(row.Valor);
+          console.log(`Hora inicio ${periodoTipo} extraída: ${horaInicioStr}`);
+        } else if (row.Nombre.includes("Fin")) {
+          horaFinStr = extraerHora(row.Valor);
+          console.log(`Hora fin ${periodoTipo} extraída: ${horaFinStr}`);
         }
       }
 
       // Verificar que obtuvimos ambos valores
-      if (!horaInicio || !horaFin) {
-        throw new Error(`No se pudieron identificar correctamente los horarios especiales`);
+      if (!horaInicioStr || !horaFinStr) {
+        console.error(
+          `No se pudieron extraer los horarios para ${periodoTipo}`
+        );
+
+        // Valores predeterminados según documentación
+        horaInicioStr = "08:00:00"; // 8:00 AM predeterminado para periodos especiales
+        horaFinStr = "13:00:00"; // 1:00 PM predeterminado para periodos especiales
       }
 
-      // Obtener los profesores
-      const profesoresQuery = `
-        SELECT 
-          ps."DNI_Profesor_Secundaria", 
-          ps."Nombres", 
-          ps."Apellidos", 
-          ps."Genero", 
-          ps."Google_Drive_Foto_ID"
-        FROM "T_Profesores_Secundaria" ps
-        WHERE ps."Estado" = true
-      `;
-      const profesoresResult = await RDP02_DB_INSTANCES.query(profesoresQuery);
+      // Extraer solo la fecha (YYYY-MM-DD) de fecha
+      const fechaString = fecha.toISOString().split("T")[0];
 
-      // Crear horarios especiales para todos los profesores
-      return profesoresResult.rows.map((profesor: any) => {
-        // Crear fechas específicas para este día
-        const entradaEspecial = new Date(fecha);
-        entradaEspecial.setHours(
-          horaInicio!.getHours(),
-          horaInicio!.getMinutes(),
-          horaInicio!.getSeconds(),
-          0
-        );
+      // Crear fechas ISO combinando la fecha con las horas
+      const horaEntradaISO = new Date(`${fechaString}T${horaInicioStr}.000Z`);
+      const horaSalidaISO = new Date(`${fechaString}T${horaFinStr}.000Z`);
 
-        const salidaEspecial = new Date(fecha);
-        salidaEspecial.setHours(
-          horaFin!.getHours(),
-          horaFin!.getMinutes(),
-          horaFin!.getSeconds(),
-          0
-        );
-
-        return {
-          DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
-          Nombres: profesor.Nombres,
-          Apellidos: profesor.Apellidos,
-          Genero: profesor.Genero,
-          Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
-          Hora_Entrada_Dia_Actual: entradaEspecial,
-          Hora_Salida_Dia_Actual: salidaEspecial,
-        };
+      console.log(`Horarios especiales generados para período ${periodoTipo}:`, {
+        entrada: horaEntradaISO.toISOString(),
+        salida: horaSalidaISO.toISOString(),
       });
+
+      // Asignar horarios especiales a los profesores con cursos este día
+      console.log(`Aplicando horarios especiales de ${periodoTipo} a los profesores con cursos este día`);
+      
+      return profesoresResult.rows.map((profesor: any) => ({
+        DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
+        Nombres: profesor.Nombres,
+        Apellidos: profesor.Apellidos,
+        Genero: profesor.Genero,
+        Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
+        Hora_Entrada_Dia_Actual: horaEntradaISO,
+        Hora_Salida_Dia_Actual: horaSalidaISO,
+        _periodoEspecial: periodoTipo,
+      }));
     }
 
-    // Si no estamos en un periodo especial, continuamos con la lógica normal
-    
-    // Obtener el día de la semana (0-6, 0 siendo domingo)
-    const diaSemana = fecha.getDay();
-    // Convertir a formato usado en la base de datos (1-7, 1 siendo lunes)
-    const diaSemanaDB = diaSemana === 0 ? 7 : diaSemana;
+    // Si NO estamos en período especial, continuamos con la lógica normal
+    // para calcular los horarios basados en los índices de entrada/salida
 
     // 1. Obtener los ajustes del sistema para el recreo
     const ajustesQuery = `
@@ -197,7 +276,9 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
       FROM "T_Ajustes_Generales_Sistema" 
       WHERE "Nombre" IN ('BLOQUE_INICIO_RECREO_SECUNDARIA', 'DURACION_RECREO_SECUNDARIA_MINUTOS')
     `;
+
     const ajustesResult = await RDP02_DB_INSTANCES.query(ajustesQuery);
+    console.log("Resultados ajustes sistema:", ajustesResult.rows);
 
     // Extraer valores de los ajustes
     const ajustes = ajustesResult.rows.reduce((acc: any, row: any) => {
@@ -209,96 +290,125 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
     const duracionRecreoMinutos =
       ajustes.DURACION_RECREO_SECUNDARIA_MINUTOS || 15;
 
+    console.log("Ajustes recreo:", {
+      bloqueInicioRecreo,
+      duracionRecreoMinutos,
+    });
+
     // 2. Obtener la hora de inicio del horario escolar secundaria
     const horariosQuery = `
       SELECT "Valor" 
       FROM "T_Horarios_Asistencia" 
       WHERE "Nombre" = 'Hora_Inicio_Asistencia_Secundaria'
     `;
+
     const horariosResult = await RDP02_DB_INSTANCES.query(horariosQuery);
+    console.log("Resultado hora inicio secundaria:", horariosResult.rows);
 
-    // Extraer la hora de inicio como objeto Date
-    const horaInicioStr = horariosResult.rows[0]?.Valor || "13:00:00";
-    let horaInicio: Date;
+    // Extraer la hora de inicio
+    const horaInicioValor = horariosResult.rows[0]?.Valor || "13:00:00";
+    const horaInicioStr = extraerHora(horaInicioValor) || "13:00:00";
+    console.log(
+      `Hora inicio extraída: ${horaInicioStr} (de ${horaInicioValor})`
+    );
 
-    // Si la Valor es un objeto Date en la DB, usamos eso, sino parseamos el string
-    if (horaInicioStr instanceof Date) {
-      horaInicio = new Date(fecha);
-      horaInicio.setHours(
-        horaInicioStr.getHours(),
-        horaInicioStr.getMinutes(),
-        0,
-        0
-      );
-    } else {
-      // Asumimos que viene como string en formato HH:MM:SS
-      const [horaStr, minutosStr] = horaInicioStr.split(":");
-      horaInicio = new Date(fecha);
-      horaInicio.setHours(
-        parseInt(horaStr, 10),
-        parseInt(minutosStr, 10),
-        0,
-        0
-      );
-    }
+    // Crear una fecha combinando la fecha base con la hora de inicio
+    const fechaString = fecha.toISOString().split("T")[0];
+    const horaInicio = new Date(`${fechaString}T${horaInicioStr}.000Z`);
 
-    // 3. Obtener los profesores y sus horarios
-    const profesoresQuery = `
-      SELECT 
-        ps."DNI_Profesor_Secundaria", 
-        ps."Nombres", 
-        ps."Apellidos", 
-        ps."Genero", 
-        ps."Google_Drive_Foto_ID",
-        -- Obtener los horarios según los cursos asignados para este día
-        MIN(ch."Indice_Hora_Academica_Inicio") as "Indice_Entrada",
-        MAX(ch."Indice_Hora_Academica_Inicio" + ch."Cant_Hora_Academicas") as "Indice_Salida"
-      FROM "T_Profesores_Secundaria" ps
-      JOIN "T_Cursos_Horario" ch ON ps."DNI_Profesor_Secundaria" = ch."DNI_Profesor_Secundaria"
-      WHERE ps."Estado" = true AND ch."Dia_Semana" = $1
-      GROUP BY ps."DNI_Profesor_Secundaria", ps."Nombres", ps."Apellidos", ps."Genero", ps."Google_Drive_Foto_ID"
-    `;
-    const profesoresResult = await RDP02_DB_INSTANCES.query(profesoresQuery, [diaSemanaDB]);
+    console.log(`Hora inicio base: ${horaInicio.toISOString()}`);
 
-    // 4. Convertir resultados a objetos con horarios calculados
+    // 3. Convertir resultados a objetos con horarios calculados
     return profesoresResult.rows.map((profesor: any) => {
-      // Calcular hora de entrada
-      const horaEntrada = calcularHoraConRecreo(
-        horaInicio,
-        profesor.Indice_Entrada,
-        bloqueInicioRecreo,
-        duracionRecreoMinutos,
-        DURACION_HORA_ACADEMICA_EN_MINUTOS,
-        false // No es hora de salida
-      );
+      try {
+        console.log(
+          `Procesando horarios para profesor ${profesor.DNI_Profesor_Secundaria}:`,
+          {
+            indiceEntrada: profesor.Indice_Entrada,
+            indiceSalida: profesor.Indice_Salida,
+          }
+        );
 
-      // Utilizamos el enfoque de índice efectivo: el "Indice_Salida" de la BD
-      // representa el índice del siguiente bloque después del último impartido,
-      // por lo que restamos 1 para obtener el índice del último bloque efectivo
-      const indiceSalidaEfectivo = profesor.Indice_Salida - 1;
+        // Verificar que los índices sean válidos
+        if (!profesor.Indice_Entrada || !profesor.Indice_Salida) {
+          throw new Error("Índices de hora inválidos");
+        }
 
-      // Calculamos la hora de salida como el final de ese bloque efectivo
-      const horaSalida = calcularHoraConRecreo(
-        horaInicio,
-        indiceSalidaEfectivo,
-        bloqueInicioRecreo,
-        duracionRecreoMinutos,
-        DURACION_HORA_ACADEMICA_EN_MINUTOS,
-        true // Es hora de salida (final del bloque)
-      );
+        // Calcular hora de entrada
+        const horaEntrada = calcularHoraConRecreo(
+          horaInicio,
+          profesor.Indice_Entrada,
+          bloqueInicioRecreo,
+          duracionRecreoMinutos,
+          DURACION_HORA_ACADEMICA_EN_MINUTOS,
+          false // No es hora de salida
+        );
 
-      return {
-        DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
-        Nombres: profesor.Nombres,
-        Apellidos: profesor.Apellidos,
-        Genero: profesor.Genero,
-        Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
-        Hora_Entrada_Dia_Actual: horaEntrada,
-        Hora_Salida_Dia_Actual: horaSalida,
-      };
+        // Utilizamos el enfoque de índice efectivo: el "Indice_Salida" de la BD
+        // representa el índice del siguiente bloque después del último impartido,
+        // por lo que restamos 1 para obtener el índice del último bloque efectivo
+        const indiceSalidaEfectivo = profesor.Indice_Salida - 1;
+
+        // Calculamos la hora de salida como el final de ese bloque efectivo
+        const horaSalida = calcularHoraConRecreo(
+          horaInicio,
+          indiceSalidaEfectivo,
+          bloqueInicioRecreo,
+          duracionRecreoMinutos,
+          DURACION_HORA_ACADEMICA_EN_MINUTOS,
+          true // Es hora de salida (final del bloque)
+        );
+
+        console.log(
+          `Horarios normales calculados para ${profesor.DNI_Profesor_Secundaria}:`,
+          {
+            entrada: horaEntrada.toISOString(),
+            salida: horaSalida.toISOString(),
+          }
+        );
+
+        return {
+          DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
+          Nombres: profesor.Nombres,
+          Apellidos: profesor.Apellidos,
+          Genero: profesor.Genero,
+          Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
+          Hora_Entrada_Dia_Actual: horaEntrada,
+          Hora_Salida_Dia_Actual: horaSalida,
+        };
+      } catch (error) {
+        console.error(
+          `Error procesando horarios para ${profesor.DNI_Profesor_Secundaria}:`,
+          error
+        );
+
+        // Crear horarios predeterminados para caso de error
+        const horaInicioDefault = new Date(fecha);
+        horaInicioDefault.setHours(13, 0, 0, 0); // 1:00 PM
+
+        const horaFinDefault = new Date(fecha);
+        horaFinDefault.setHours(18, 30, 0, 0); // 6:30 PM
+
+        return {
+          DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
+          Nombres: profesor.Nombres,
+          Apellidos: profesor.Apellidos,
+          Genero: profesor.Genero,
+          Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
+          Hora_Entrada_Dia_Actual: horaInicioDefault,
+          Hora_Salida_Dia_Actual: horaFinDefault,
+          _error:
+            "Error calculando horarios: " +
+            (error instanceof Error ? error.message : String(error)),
+        };
+      }
     });
   } catch (error) {
-    console.error("Error al obtener profesores secundaria:", error);
-    throw error;
+    console.error(
+      "Error general en obtenerProfesoresSecundariaParaTomarAsistencia:",
+      error
+    );
+    // Siempre devolvemos array vacío en caso de error
+    return [];
   }
 }

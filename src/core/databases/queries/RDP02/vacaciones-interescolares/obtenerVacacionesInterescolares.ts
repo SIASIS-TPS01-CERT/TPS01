@@ -1,4 +1,4 @@
-import RDP02_DB_INSTANCES from '../../../connectors/postgres';
+import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
 export async function obtenerVacacionesInterescolares() {
   const sql = `

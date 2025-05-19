@@ -1,4 +1,9 @@
+import { T_Vacaciones_Interescolares } from "@prisma/client";
 import { HorarioTomaAsistencia } from "../../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
+import {
+  crearFechaConHora,
+  extraerHora,
+} from "../../../../utils/dates/modificacionFechas";
 import { verificarDentroSemanaGestion } from "../../../../utils/verificators/verificarDentroSemanaGestion";
 import { verificarDentroVacacionesInterescolares } from "../../../../utils/verificators/verificarDentroVacacionesInterescolares";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
@@ -11,24 +16,135 @@ type HorariosGeneralesReturn = {
 
 export async function obtenerHorariosGenerales(
   fechaActual: Date,
-  vacacionesInterescolares: any[],
+  vacacionesInterescolares: T_Vacaciones_Interescolares[],
   semanaGestion: any | null
 ): Promise<HorariosGeneralesReturn> {
-  // Primero verificamos si estamos en vacaciones interescolares
-  const enVacacionesInterescolares = verificarDentroVacacionesInterescolares(
-    fechaActual,
-    vacacionesInterescolares
-  );
+  try {
+    console.log("==========================================");
+    console.log("ANÁLISIS DE FECHAS EN obtenerHorariosGenerales");
+    console.log(`Fecha recibida: ${fechaActual?.toISOString()}`);
+    console.log(`  -> Día UTC: ${fechaActual?.getUTCDate()}`);
+    console.log(`  -> Mes UTC: ${fechaActual?.getUTCMonth() + 1}`);
+    console.log(`  -> Año UTC: ${fechaActual?.getUTCFullYear()}`);
+    console.log(
+      `  -> Hora UTC: ${fechaActual?.getUTCHours()}:${fechaActual?.getUTCMinutes()}`
+    );
+    console.log("==========================================");
 
-  // Verificamos si estamos en semana de gestión
-  const enSemanaGestion = verificarDentroSemanaGestion(
-    fechaActual,
-    semanaGestion
-  );
+    // Asegurar que fechaActual sea válida
+    if (!fechaActual || isNaN(fechaActual.getTime())) {
+      console.error("Fecha inválida proporcionada:", fechaActual);
+      fechaActual = new Date(); // Usar fecha actual como fallback
+    }
 
-  // Si estamos en vacaciones interescolares
-  if (enVacacionesInterescolares) {
-    // Consulta para obtener los horarios específicos de vacaciones interescolares
+    // Primero verificamos si estamos en vacaciones interescolares
+    const enVacacionesInterescolares = verificarDentroVacacionesInterescolares(
+      fechaActual,
+      vacacionesInterescolares
+    );
+
+    // Verificamos si estamos en semana de gestión
+    const enSemanaGestion = verificarDentroSemanaGestion(
+      fechaActual,
+      semanaGestion
+    );
+
+    console.log("Estado de períodos especiales:", {
+      enVacacionesInterescolares,
+      enSemanaGestion,
+    });
+
+    // Si estamos en vacaciones interescolares o semana de gestión
+    if (enVacacionesInterescolares || enSemanaGestion) {
+      // Determinamos el período específico para la consulta
+      let nombresHorarios = [];
+
+      if (enVacacionesInterescolares) {
+        nombresHorarios = [
+          "Inicio_Horario_Laboral_Para_Personal_General_Vacaciones_Interescolares",
+          "Fin_Horario_Laboral_Para_Personal_General_Vacaciones_Interescolares",
+        ];
+        console.log("Consultando horarios para VACACIONES INTERESCOLARES");
+      } else {
+        nombresHorarios = [
+          "Inicio_Horario_Laboral_Para_Personal_General_Semana_Gestion",
+          "Fin_Horario_Laboral_Para_Personal_General_Semana_Gestion",
+        ];
+        console.log("Consultando horarios para SEMANA DE GESTIÓN");
+      }
+
+      // Consulta para obtener los horarios específicos para este período
+      const sql = `
+        SELECT 
+          "Nombre", "Valor"
+        FROM 
+          "T_Horarios_Asistencia"
+        WHERE 
+          "Nombre" IN (
+            '${nombresHorarios[0]}',
+            '${nombresHorarios[1]}'
+          )
+      `;
+
+      const result = await RDP02_DB_INSTANCES.query(sql);
+      console.log(`Resultados de horarios para período especial:`, result.rows);
+
+      // Extraer los valores
+      let horaInicioStr: string | null = null;
+      let horaFinStr: string | null = null;
+
+      for (const row of result.rows) {
+        if (row.Nombre === nombresHorarios[0]) {
+          horaInicioStr = extraerHora(row.Valor);
+          console.log(`Hora inicio extraída: ${horaInicioStr} de ${row.Valor}`);
+        } else if (row.Nombre === nombresHorarios[1]) {
+          horaFinStr = extraerHora(row.Valor);
+          console.log(`Hora fin extraída: ${horaFinStr} de ${row.Valor}`);
+        }
+      }
+
+      // Verificar que obtuvimos ambos valores
+      if (!horaInicioStr || !horaFinStr) {
+        console.error(
+          "No se pudieron extraer ambos horarios para períodos especiales:",
+          {
+            inicio: horaInicioStr,
+            fin: horaFinStr,
+          }
+        );
+
+        // Valores predeterminados para períodos especiales
+        horaInicioStr = "08:00:00";
+        horaFinStr = "13:00:00"; // Horario reducido en períodos especiales
+      }
+
+      // Crear fechas combinando con la fecha actual
+      const horaInicio = crearFechaConHora(fechaActual, horaInicioStr);
+      const horaFin = crearFechaConHora(fechaActual, horaFinStr);
+
+      console.log(`Horarios para período especial:`, {
+        inicio: horaInicio.toISOString(),
+        fin: horaFin.toISOString(),
+      });
+
+      // Durante períodos especiales, todos los roles usan el mismo horario especial
+      return {
+        TomaAsistenciaRangoTotalPersonales: {
+          Inicio: horaInicio,
+          Fin: horaFin,
+        },
+        TomaAsistenciaProfesorPrimaria: {
+          Inicio: horaInicio,
+          Fin: horaFin,
+        },
+        TomaAsistenciaAuxiliares: {
+          Inicio: horaInicio,
+          Fin: horaFin,
+        },
+      };
+    }
+
+    // Si no estamos en periodo especial, obtenemos los horarios normales con nombres estáticos
     const sql = `
       SELECT 
         "Nombre", "Valor"
@@ -36,161 +152,219 @@ export async function obtenerHorariosGenerales(
         "T_Horarios_Asistencia"
       WHERE 
         "Nombre" IN (
-          'Inicio_Horario_Laboral_Para_Personal_General_Vacaciones_Interescolares',
-          'Fin_Horario_Laboral_Para_Personal_General_Vacaciones_Interescolares'
+          'Hora_Inicio_Asistencia_Primaria',
+          'Hora_Final_Asistencia_Primaria',
+          'Hora_Inicio_Asistencia_Secundaria',
+          'Hora_Final_Asistencia_Secundaria',
+          'Inicio_Horario_Laboral_Profesores_Primaria',
+          'Fin_Horario_Laboral_Profesores_Primaria',
+          'Inicio_Horario_Laboral_Auxiliar',
+          'Fin_Horario_Laboral_Auxiliar',
+          'Horario_Laboral_Rango_Total_Inicio',
+          'Horario_Laboral_Rango_Total_Fin'
         )
     `;
 
     const result = await RDP02_DB_INSTANCES.query(sql);
+    console.log("Resultados de horarios normales:", result.rows);
 
-    // Verificamos si encontramos exactamente los dos registros
-    if (result.rows.length !== 2) {
-      throw new Error(`No se encontraron los horarios completos para vacaciones interescolares. Se esperaban 2 registros y se encontraron ${result.rows.length}`);
-    }
+    // Inicializar objeto para almacenar los horarios extraídos
+    const horariosExtraidos = {
+      horaPrimaria: {
+        inicio: null as string | null,
+        fin: null as string | null,
+      },
+      horaSecundaria: {
+        inicio: null as string | null,
+        fin: null as string | null,
+      },
+      horaLaboralPrimaria: {
+        inicio: null as string | null,
+        fin: null as string | null,
+      },
+      horaLaboralAuxiliar: {
+        inicio: null as string | null,
+        fin: null as string | null,
+      },
+      horaLaboralTotal: {
+        inicio: null as string | null,
+        fin: null as string | null,
+      },
+    };
 
-    // Extraer los valores
-    let horaInicio: Date | null = null;
-    let horaFin: Date | null = null;
-
+    // Extraer los valores por nombre específico
     for (const row of result.rows) {
-      if (row.Nombre === 'Inicio_Horario_Laboral_Para_Personal_General_Vacaciones_Interescolares') {
-        horaInicio = new Date(row.Valor);
-      } else if (row.Nombre === 'Fin_Horario_Laboral_Para_Personal_General_Vacaciones_Interescolares') {
-        horaFin = new Date(row.Valor);
+      try {
+        const horaStr = extraerHora(row.Valor);
+        console.log(
+          `Extrayendo hora para [${row.Nombre}]: ${horaStr} (de ${row.Valor})`
+        );
+
+        // Asignar según nombre exacto
+        switch (row.Nombre) {
+          case "Hora_Inicio_Asistencia_Primaria":
+            horariosExtraidos.horaPrimaria.inicio = horaStr;
+            break;
+          case "Hora_Final_Asistencia_Primaria":
+            horariosExtraidos.horaPrimaria.fin = horaStr;
+            break;
+          case "Hora_Inicio_Asistencia_Secundaria":
+            horariosExtraidos.horaSecundaria.inicio = horaStr;
+            break;
+          case "Hora_Final_Asistencia_Secundaria":
+            horariosExtraidos.horaSecundaria.fin = horaStr;
+            break;
+          case "Inicio_Horario_Laboral_Profesores_Primaria":
+            horariosExtraidos.horaLaboralPrimaria.inicio = horaStr;
+            break;
+          case "Fin_Horario_Laboral_Profesores_Primaria":
+            horariosExtraidos.horaLaboralPrimaria.fin = horaStr;
+            break;
+          case "Inicio_Horario_Laboral_Auxiliar":
+            horariosExtraidos.horaLaboralAuxiliar.inicio = horaStr;
+            break;
+          case "Fin_Horario_Laboral_Auxiliar":
+            horariosExtraidos.horaLaboralAuxiliar.fin = horaStr;
+            break;
+          case "Horario_Laboral_Rango_Total_Inicio":
+            horariosExtraidos.horaLaboralTotal.inicio = horaStr;
+            break;
+          case "Horario_Laboral_Rango_Total_Fin":
+            horariosExtraidos.horaLaboralTotal.fin = horaStr;
+            break;
+        }
+      } catch (error) {
+        console.error(`Error procesando hora [${row.Nombre}]:`, error, {
+          raw: row.Valor,
+        });
       }
     }
 
-    // Verificar que obtuvimos ambos valores
-    if (!horaInicio || !horaFin) {
-      throw new Error("No se pudieron identificar correctamente los horarios para vacaciones interescolares");
+    // Aplicar valores predeterminados donde faltan horarios
+    const valoresPredeterminados = {
+      asistenciaPrimaria: { inicio: "07:45:00", fin: "12:45:00" },
+      asistenciaSecundaria: { inicio: "13:00:00", fin: "18:30:00" },
+      laboralPrimaria: { inicio: "07:45:00", fin: "12:45:00" },
+      laboralAuxiliar: { inicio: "12:30:00", fin: "18:30:00" },
+      laboralTotal: { inicio: "07:00:00", fin: "19:00:00" },
+    };
+
+    // Horarios para profesores primaria
+    if (!horariosExtraidos.horaLaboralPrimaria.inicio) {
+      horariosExtraidos.horaLaboralPrimaria.inicio =
+        horariosExtraidos.horaPrimaria.inicio ||
+        valoresPredeterminados.laboralPrimaria.inicio;
     }
 
-    // Devolvemos los mismos horarios para todos los tipos de personal
+    if (!horariosExtraidos.horaLaboralPrimaria.fin) {
+      horariosExtraidos.horaLaboralPrimaria.fin =
+        horariosExtraidos.horaPrimaria.fin ||
+        valoresPredeterminados.laboralPrimaria.fin;
+    }
+
+    // Horarios para auxiliares
+    if (!horariosExtraidos.horaLaboralAuxiliar.inicio) {
+      horariosExtraidos.horaLaboralAuxiliar.inicio =
+        horariosExtraidos.horaSecundaria.inicio ||
+        valoresPredeterminados.laboralAuxiliar.inicio;
+    }
+
+    if (!horariosExtraidos.horaLaboralAuxiliar.fin) {
+      horariosExtraidos.horaLaboralAuxiliar.fin =
+        horariosExtraidos.horaSecundaria.fin ||
+        valoresPredeterminados.laboralAuxiliar.fin;
+    }
+
+    // Horarios totales
+    if (!horariosExtraidos.horaLaboralTotal.inicio) {
+      horariosExtraidos.horaLaboralTotal.inicio =
+        valoresPredeterminados.laboralTotal.inicio;
+    }
+
+    if (!horariosExtraidos.horaLaboralTotal.fin) {
+      horariosExtraidos.horaLaboralTotal.fin =
+        valoresPredeterminados.laboralTotal.fin;
+    }
+
+    // Crear objetos Date combinando con la fecha actual
+    const horaInicioTotal = crearFechaConHora(
+      fechaActual,
+      horariosExtraidos.horaLaboralTotal.inicio
+    );
+
+    const horaFinTotal = crearFechaConHora(
+      fechaActual,
+      horariosExtraidos.horaLaboralTotal.fin
+    );
+
+    const horaInicioPrimaria = crearFechaConHora(
+      fechaActual,
+      horariosExtraidos.horaLaboralPrimaria.inicio
+    );
+
+    const horaFinPrimaria = crearFechaConHora(
+      fechaActual,
+      horariosExtraidos.horaLaboralPrimaria.fin
+    );
+
+    const horaInicioAuxiliar = crearFechaConHora(
+      fechaActual,
+      horariosExtraidos.horaLaboralAuxiliar.inicio
+    );
+
+    const horaFinAuxiliar = crearFechaConHora(
+      fechaActual,
+      horariosExtraidos.horaLaboralAuxiliar.fin
+    );
+
+    console.log("Fechas combinadas generadas (horario normal):");
+    console.log(
+      `- Total: ${horaInicioTotal.toISOString()} - ${horaFinTotal.toISOString()}`
+    );
+    console.log(
+      `- Primaria: ${horaInicioPrimaria.toISOString()} - ${horaFinPrimaria.toISOString()}`
+    );
+    console.log(
+      `- Auxiliares: ${horaInicioAuxiliar.toISOString()} - ${horaFinAuxiliar.toISOString()}`
+    );
+
     return {
       TomaAsistenciaRangoTotalPersonales: {
-        Inicio: horaInicio,
-        Fin: horaFin,
+        Inicio: horaInicioTotal,
+        Fin: horaFinTotal,
       },
       TomaAsistenciaProfesorPrimaria: {
-        Inicio: horaInicio,
-        Fin: horaFin,
+        Inicio: horaInicioPrimaria,
+        Fin: horaFinPrimaria,
       },
       TomaAsistenciaAuxiliares: {
-        Inicio: horaInicio,
-        Fin: horaFin,
+        Inicio: horaInicioAuxiliar,
+        Fin: horaFinAuxiliar,
+      },
+    };
+  } catch (error) {
+    console.error("Error general en obtenerHorariosGenerales:", error);
+
+    // Crear horarios predeterminados en caso de error
+    const initDate = new Date(fechaActual);
+    initDate.setHours(8, 0, 0, 0);
+
+    const endDate = new Date(fechaActual);
+    endDate.setHours(16, 0, 0, 0);
+
+    return {
+      TomaAsistenciaRangoTotalPersonales: {
+        Inicio: initDate,
+        Fin: endDate,
+      },
+      TomaAsistenciaProfesorPrimaria: {
+        Inicio: initDate,
+        Fin: endDate,
+      },
+      TomaAsistenciaAuxiliares: {
+        Inicio: initDate,
+        Fin: endDate,
       },
     };
   }
-  
-  // Si estamos en semana de gestión
-  else if (enSemanaGestion) {
-    // Consulta para obtener los horarios específicos de semana de gestión
-    const sql = `
-      SELECT 
-        "Nombre", "Valor"
-      FROM 
-        "T_Horarios_Asistencia"
-      WHERE 
-        "Nombre" IN (
-          'Inicio_Horario_Laboral_Para_Personal_General_Semana_Gestion',
-          'Fin_Horario_Laboral_Para_Personal_General_Semana_Gestion'
-        )
-    `;
-
-    const result = await RDP02_DB_INSTANCES.query(sql);
-
-    // Verificamos si encontramos exactamente los dos registros
-    if (result.rows.length !== 2) {
-      throw new Error(`No se encontraron los horarios completos para semana de gestión. Se esperaban 2 registros y se encontraron ${result.rows.length}`);
-    }
-
-    // Extraer los valores
-    let horaInicio: Date | null = null;
-    let horaFin: Date | null = null;
-
-    for (const row of result.rows) {
-      if (row.Nombre === 'Inicio_Horario_Laboral_Para_Personal_General_Semana_Gestion') {
-        horaInicio = new Date(row.Valor);
-      } else if (row.Nombre === 'Fin_Horario_Laboral_Para_Personal_General_Semana_Gestion') {
-        horaFin = new Date(row.Valor);
-      }
-    }
-
-    // Verificar que obtuvimos ambos valores
-    if (!horaInicio || !horaFin) {
-      throw new Error("No se pudieron identificar correctamente los horarios para semana de gestión");
-    }
-
-    // Devolvemos los mismos horarios para todos los tipos de personal
-    return {
-      TomaAsistenciaRangoTotalPersonales: {
-        Inicio: horaInicio,
-        Fin: horaFin,
-      },
-      TomaAsistenciaProfesorPrimaria: {
-        Inicio: horaInicio,
-        Fin: horaFin,
-      },
-      TomaAsistenciaAuxiliares: {
-        Inicio: horaInicio,
-        Fin: horaFin,
-      },
-    };
-  }
-
-  // Si no estamos en periodo especial, obtenemos los horarios normales
-  const sql = `
-    SELECT 
-      "Nombre", "Valor"
-    FROM 
-      "T_Horarios_Asistencia"
-    WHERE 
-      "Nombre" IN (
-        'Hora_Inicio_Asistencia_Primaria',
-        'Hora_Final_Asistencia_Primaria',
-        'Hora_Inicio_Asistencia_Secundaria',
-        'Hora_Final_Asistencia_Secundaria',
-        'Horario_Laboral_Rango_Total_Inicio',
-        'Horario_Laboral_Rango_Total_Fin'
-      )
-  `;
-
-  const result = await RDP02_DB_INSTANCES.query(sql);
-
-  // Convertir a un objeto para fácil acceso
-  const horarios: Record<string, Date> = {};
-  for (const row of result.rows) {
-    horarios[row.Nombre] = new Date(row.Valor);
-  }
-
-  // Verificar que obtuvimos todos los horarios necesarios
-  const requiredHorarios = [
-    'Hora_Inicio_Asistencia_Primaria',
-    'Hora_Final_Asistencia_Primaria',
-    'Hora_Inicio_Asistencia_Secundaria',
-    'Hora_Final_Asistencia_Secundaria',
-    'Horario_Laboral_Rango_Total_Inicio',
-    'Horario_Laboral_Rango_Total_Fin'
-  ];
-
-  for (const horario of requiredHorarios) {
-    if (!horarios[horario]) {
-      throw new Error(`No se encontró el horario: ${horario}`);
-    }
-  }
-
-  return {
-    TomaAsistenciaRangoTotalPersonales: {
-      Inicio: horarios["Horario_Laboral_Rango_Total_Inicio"],
-      Fin: horarios["Horario_Laboral_Rango_Total_Fin"],
-    },
-    TomaAsistenciaProfesorPrimaria: {
-      Inicio: horarios["Hora_Inicio_Asistencia_Primaria"],
-      Fin: horarios["Hora_Final_Asistencia_Primaria"],
-    },
-    TomaAsistenciaAuxiliares: {
-      Inicio: horarios["Hora_Inicio_Asistencia_Secundaria"],
-      Fin: horarios["Hora_Final_Asistencia_Secundaria"],
-    },
-  };
 }

@@ -79,7 +79,7 @@ async function generarDatosAsistenciaDiaria(): Promise<DatosAsistenciaHoyIE20935
     semanaGestion
   );
 
-  const horariosEscolares = await obtenerHorariosEscolares();
+  const horariosEscolares = await obtenerHorariosEscolares(fechaLocalPeru);
 
   // Construir el objeto de datos
   const datosAsistencia: DatosAsistenciaHoyIE20935 = {
