@@ -8,11 +8,35 @@ import { verificarDentroSemanaGestion } from "../../../../utils/verificators/ver
 import { verificarDentroVacacionesInterescolares } from "../../../../utils/verificators/verificarDentroVacacionesInterescolares";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
+// Constantes para la extensión del rango total
+const EXTENSION_INICIO_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS = 1;
+const EXTENSION_FIN_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS = 1;
+
 type HorariosGeneralesReturn = {
   TomaAsistenciaRangoTotalPersonales: HorarioTomaAsistencia;
   TomaAsistenciaProfesorPrimaria: HorarioTomaAsistencia;
   TomaAsistenciaAuxiliares: HorarioTomaAsistencia;
 };
+
+/**
+ * Aplica extensión de horario al rango total (extiende 1 hora antes y 1 hora después)
+ */
+function aplicarExtensionRangoTotal(horaInicio: Date, horaFin: Date): { inicio: Date; fin: Date } {
+  const inicioExtendido = new Date(horaInicio);
+  inicioExtendido.setUTCHours(horaInicio.getUTCHours() - EXTENSION_INICIO_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS);
+  
+  const finExtendido = new Date(horaFin);
+  finExtendido.setUTCHours(horaFin.getUTCHours() + EXTENSION_FIN_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS);
+  
+  console.log(`🔄 Extensión aplicada al rango total:`);
+  console.log(`   Original: ${horaInicio.toISOString()} - ${horaFin.toISOString()}`);
+  console.log(`   Extendido: ${inicioExtendido.toISOString()} - ${finExtendido.toISOString()}`);
+  
+  return {
+    inicio: inicioExtendido,
+    fin: finExtendido
+  };
+}
 
 export async function obtenerHorariosGenerales(
   fechaActual: Date,
@@ -127,19 +151,23 @@ export async function obtenerHorariosGenerales(
         fin: horaFin.toISOString(),
       });
 
+      // Aplicar extensión solo al rango total
+      const rangoTotalExtendido = aplicarExtensionRangoTotal(horaInicio, horaFin);
+
       // Durante períodos especiales, todos los roles usan el mismo horario especial
+      // PERO el rango total se extiende con las constantes
       return {
         TomaAsistenciaRangoTotalPersonales: {
-          Inicio: horaInicio,
-          Fin: horaFin,
+          Inicio: rangoTotalExtendido.inicio,
+          Fin: rangoTotalExtendido.fin,
         },
         TomaAsistenciaProfesorPrimaria: {
-          Inicio: horaInicio,
-          Fin: horaFin,
+          Inicio: horaInicio, // Sin extensión
+          Fin: horaFin,       // Sin extensión
         },
         TomaAsistenciaAuxiliares: {
-          Inicio: horaInicio,
-          Fin: horaFin,
+          Inicio: horaInicio, // Sin extensión
+          Fin: horaFin,       // Sin extensión
         },
       };
     }
@@ -286,16 +314,19 @@ export async function obtenerHorariosGenerales(
         valoresPredeterminados.laboralTotal.fin;
     }
 
-    // Crear objetos Date combinando con la fecha actual
-    const horaInicioTotal = crearFechaConHora(
+    // Crear objetos Date combinando con la fecha actual (SIN extensión primero)
+    const horaInicioTotalBase = crearFechaConHora(
       fechaActual,
       horariosExtraidos.horaLaboralTotal.inicio
     );
 
-    const horaFinTotal = crearFechaConHora(
+    const horaFinTotalBase = crearFechaConHora(
       fechaActual,
       horariosExtraidos.horaLaboralTotal.fin
     );
+
+    // Aplicar extensión solo al rango total
+    const rangoTotalExtendido = aplicarExtensionRangoTotal(horaInicioTotalBase, horaFinTotalBase);
 
     const horaInicioPrimaria = crearFechaConHora(
       fechaActual,
@@ -319,7 +350,10 @@ export async function obtenerHorariosGenerales(
 
     console.log("Fechas combinadas generadas (horario normal):");
     console.log(
-      `- Total: ${horaInicioTotal.toISOString()} - ${horaFinTotal.toISOString()}`
+      `- Total Base: ${horaInicioTotalBase.toISOString()} - ${horaFinTotalBase.toISOString()}`
+    );
+    console.log(
+      `- Total Extendido: ${rangoTotalExtendido.inicio.toISOString()} - ${rangoTotalExtendido.fin.toISOString()}`
     );
     console.log(
       `- Primaria: ${horaInicioPrimaria.toISOString()} - ${horaFinPrimaria.toISOString()}`
@@ -330,16 +364,16 @@ export async function obtenerHorariosGenerales(
 
     return {
       TomaAsistenciaRangoTotalPersonales: {
-        Inicio: horaInicioTotal,
-        Fin: horaFinTotal,
+        Inicio: rangoTotalExtendido.inicio,
+        Fin: rangoTotalExtendido.fin,
       },
       TomaAsistenciaProfesorPrimaria: {
-        Inicio: horaInicioPrimaria,
-        Fin: horaFinPrimaria,
+        Inicio: horaInicioPrimaria, // Sin extensión
+        Fin: horaFinPrimaria,       // Sin extensión
       },
       TomaAsistenciaAuxiliares: {
-        Inicio: horaInicioAuxiliar,
-        Fin: horaFinAuxiliar,
+        Inicio: horaInicioAuxiliar, // Sin extensión
+        Fin: horaFinAuxiliar,       // Sin extensión
       },
     };
   } catch (error) {
@@ -347,23 +381,26 @@ export async function obtenerHorariosGenerales(
 
     // Crear horarios predeterminados en caso de error
     const initDate = new Date(fechaActual);
-    initDate.setHours(8, 0, 0, 0);
+    initDate.setUTCHours(8, 0, 0, 0);
 
     const endDate = new Date(fechaActual);
-    endDate.setHours(16, 0, 0, 0);
+    endDate.setUTCHours(16, 0, 0, 0);
+
+    // Aplicar extensión también en caso de error
+    const rangoTotalExtendido = aplicarExtensionRangoTotal(initDate, endDate);
 
     return {
       TomaAsistenciaRangoTotalPersonales: {
-        Inicio: initDate,
-        Fin: endDate,
+        Inicio: rangoTotalExtendido.inicio,
+        Fin: rangoTotalExtendido.fin,
       },
       TomaAsistenciaProfesorPrimaria: {
-        Inicio: initDate,
-        Fin: endDate,
+        Inicio: initDate,  // Sin extensión
+        Fin: endDate,      // Sin extensión
       },
       TomaAsistenciaAuxiliares: {
-        Inicio: initDate,
-        Fin: endDate,
+        Inicio: initDate,  // Sin extensión
+        Fin: endDate,      // Sin extensión
       },
     };
   }

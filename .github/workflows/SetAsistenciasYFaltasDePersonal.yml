@@ -1,4 +1,4 @@
-name: Ejecutar Script de registro de faltas de Personal Diarias
+name: Ejecutar Script de registro de asistencias y faltas de Personal Diarias
 
 on:
   schedule:
@@ -33,7 +33,7 @@ jobs:
       - name: Ejecutar script con ts-node
         run: |
           echo "Ejecutando script..."
-          ts-node ./src/jobs/asistencia/SetFaltasDePersonal.ts
+          ts-node ./src/jobs/asistencia/SetAsistenciasYFaltasDePersonal.ts
         env:
           RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
           RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}

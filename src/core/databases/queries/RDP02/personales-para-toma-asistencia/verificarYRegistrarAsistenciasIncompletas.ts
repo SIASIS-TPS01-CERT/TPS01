@@ -23,9 +23,11 @@ export async function verificarYRegistrarAsistenciasIncompletas(
   personalSinRegistroEntrada: PersonalActivo[];
   personalSinRegistroSalida: PersonalActivo[];
 }> {
-  // Obtener mes y día
-  const mes = fechaLocalPeru.getMonth() + 1; // getMonth() devuelve 0-11
-  const dia = fechaLocalPeru.getDate();
+  // ✅ CORRECCIÓN: Usar métodos UTC
+  const mes = fechaLocalPeru.getUTCMonth() + 1;  // Usar getUTCMonth()
+  const dia = fechaLocalPeru.getUTCDate();       // Usar getUTCDate()
+
+  console.log(`🔍 DEBUG - Procesando faltas para mes: ${mes}, día: ${dia}`);
 
   let registrosEntradaCreados = 0;
   let registrosSalidaCreados = 0;
