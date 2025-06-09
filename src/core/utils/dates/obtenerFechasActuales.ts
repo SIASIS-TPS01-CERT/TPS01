@@ -7,7 +7,7 @@ export function obtenerFechasActuales() {
   // Si el mock está habilitado, usamos la fecha mockeada
   const fechaUTC =
     ENTORNO === Entorno.LOCAL && FECHA_HORA_MOCKEADAS
-      ? generarFechaHoraMockeada(2025, 4, 18, 9, 30, 0) // 12:30 UTC
+      ? generarFechaHoraMockeada(2025, 6, 6, 9, 30, 0) // 12:30 UTC
       : new Date();
 
   // Para la fecha local de Perú (UTC-5)

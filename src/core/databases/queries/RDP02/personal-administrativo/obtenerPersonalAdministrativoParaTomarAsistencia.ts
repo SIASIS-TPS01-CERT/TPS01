@@ -22,6 +22,26 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
     console.log(
       `  -> Hora UTC: ${fechaActual.getUTCHours()}:${fechaActual.getUTCMinutes()}`
     );
+
+    // 📅 CALCULAR DÍA DE LA SEMANA (1=Lunes, 2=Martes, 3=Miércoles, 4=Jueves, 5=Viernes)
+    const diaSemanaJS = fechaActual.getUTCDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+    const diaSemanaDB = diaSemanaJS === 0 ? 7 : diaSemanaJS; // Convertir: 1-7 donde 1=Lunes, 7=Domingo
+
+    console.log(
+      `  -> Día de la semana JS: ${diaSemanaJS} (0=Dom, 1=Lun, ..., 6=Sáb)`
+    );
+    console.log(
+      `  -> Día de la semana DB: ${diaSemanaDB} (1=Lun, 2=Mar, ..., 7=Dom)`
+    );
+
+    // Solo procesar si es día laboral (Lunes a Viernes = 1 a 5)
+    if (diaSemanaDB < 1 || diaSemanaDB > 5) {
+      console.log(
+        "⚠️  No es día laboral (solo Lunes-Viernes), devolviendo array vacío"
+      );
+      return [];
+    }
+
     console.log("==========================================");
 
     // Verificar si estamos en vacaciones interescolares o semana de gestión
@@ -72,22 +92,31 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
       }
     }
 
-    // Consultar el personal administrativo
+    // 🔄 NUEVA CONSULTA: JOIN con tabla de horarios por días
     const sql = `
       SELECT 
-        "DNI_Personal_Administrativo", 
-        "Genero", 
-        "Nombres", 
-        "Apellidos", 
-        "Cargo", 
-        "Google_Drive_Foto_ID", 
-        "Horario_Laboral_Entrada", 
-        "Horario_Laboral_Salida"
-      FROM "T_Personal_Administrativo"
-      WHERE "Estado" = true
+        pa."DNI_Personal_Administrativo", 
+        pa."Genero", 
+        pa."Nombres", 
+        pa."Apellidos", 
+        pa."Cargo", 
+        pa."Google_Drive_Foto_ID",
+        h."Hora_Inicio" as "Horario_Laboral_Entrada",
+        h."Hora_Fin" as "Horario_Laboral_Salida"
+      FROM "T_Personal_Administrativo" pa
+      LEFT JOIN "T_Horarios_Por_Dias_Personal_Administrativo" h 
+        ON pa."DNI_Personal_Administrativo" = h."DNI_Personal_Administrativo" 
+        AND h."Dia" = $1
+      WHERE pa."Estado" = true
+        AND h."Dia" IS NOT NULL  -- Solo incluir personal que tenga horario para este día
     `;
 
-    const result = await RDP02_DB_INSTANCES.query(sql);
+    const result = await RDP02_DB_INSTANCES.query(sql, [diaSemanaDB]);
+
+    console.log(
+      `📊 Personal administrativo encontrado para día ${diaSemanaDB}:`,
+      result.rows.length
+    );
     console.log(
       "Datos brutos de horarios laborales:",
       result.rows.map(
@@ -124,7 +153,7 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
             `Usando horarios especiales para ${row.DNI_Personal_Administrativo}: ${horaEntrada}, ${horaSalida}`
           );
         } else {
-          // Extraer horas normales
+          // Extraer horas normales desde la nueva tabla
           horaEntrada = extraerHora(row.Horario_Laboral_Entrada) || "08:00:00";
           horaSalida = extraerHora(row.Horario_Laboral_Salida) || "16:00:00";
           console.log(
