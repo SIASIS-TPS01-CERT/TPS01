@@ -9,6 +9,7 @@ interface ConfiguracionTabla {
   tabla: string;
   campoDNI: string;
   campoJSON: "Entradas" | "Salidas";
+  esDirectivo?: boolean; // 🆕 NUEVO CAMPO para identificar directivos
 }
 
 // Interfaz para el resultado del registro
@@ -35,6 +36,17 @@ function obtenerConfiguracionTabla(
   }
 
   switch (rol) {
+    // 🆕 NUEVO CASO PARA DIRECTIVOS
+    case RolesSistema.Directivo:
+      return {
+        tabla: esEntrada
+          ? "T_Control_Entrada_Mensual_Directivos"
+          : "T_Control_Salida_Mensual_Directivos",
+        campoDNI: "Id_Directivo", // Directivos usan Id_Directivo
+        campoJSON: esEntrada ? "Entradas" : "Salidas",
+        esDirectivo: true, // 🆕 Marcador especial
+      };
+
     case RolesSistema.ProfesorPrimaria:
       return {
         tabla: esEntrada
@@ -80,20 +92,21 @@ function obtenerConfiguracionTabla(
 
 /**
  * Función para registrar asistencia con valores personalizados (timestamp y desfase)
+ * 🆕 ACTUALIZADA para manejar directivos con Id_Directivo
  */
 async function registrarAsistenciaConValoresPersonalizados(
   tabla: string,
   campoDNI: string,
-  dni: string,
+  identificador: string | number, // 🆕 Puede ser DNI (string) o Id_Directivo (number)
   mes: number,
   dia: number,
   campoJson: "Entradas" | "Salidas",
   valorRegistro: { Timestamp: number; DesfaseSegundos: number },
-  rol: string
+  rol: string,
+  esDirectivo: boolean = false // 🆕 NUEVO PARÁMETRO
 ): Promise<{ exito: boolean; mensaje: string }> {
   try {
     // Verificar si ya existe un registro para este mes
-    // Para consultas de lectura, usamos la función normal (sin cache)
     const sqlVerificar = `
       SELECT *
       FROM "${tabla}"
@@ -101,7 +114,7 @@ async function registrarAsistenciaConValoresPersonalizados(
     `;
     const resultVerificar = await RDP02_DB_INSTANCES.query(
       sqlVerificar,
-      [dni, mes],
+      [identificador, mes],
       false
     );
 
@@ -142,8 +155,7 @@ async function registrarAsistenciaConValoresPersonalizados(
           };
         }
 
-        // Actualizar el registro - como es una operación de escritura,
-        // tu sistema automáticamente lo ejecutará en todas las instancias
+        // Actualizar el registro
         const sqlActualizar = `
           UPDATE "${tabla}"
           SET "${campoJson}" = $1
@@ -154,14 +166,16 @@ async function registrarAsistenciaConValoresPersonalizados(
           registro[idKey],
         ]);
 
+        const tipoIdentificador = esDirectivo ? "Id_Directivo" : "DNI";
         return {
           exito: true,
-          mensaje: `Registro actualizado para DNI ${dni} en día ${dia}`,
+          mensaje: `Registro actualizado para ${tipoIdentificador} ${identificador} en día ${dia}`,
         };
       } else {
+        const tipoIdentificador = esDirectivo ? "Id_Directivo" : "DNI";
         return {
           exito: false,
-          mensaje: `Registro ya existe para DNI ${dni} en día ${dia}, manteniendo el existente`,
+          mensaje: `Registro ya existe para ${tipoIdentificador} ${identificador} en día ${dia}, manteniendo el existente`,
         };
       }
     } else {
@@ -169,21 +183,21 @@ async function registrarAsistenciaConValoresPersonalizados(
       const nuevoJson: any = {};
       nuevoJson[dia.toString()] = valorRegistro;
 
-      // Insertar nuevo registro - como es una operación de escritura,
-      // tu sistema automáticamente lo ejecutará en todas las instancias
+      // Insertar nuevo registro
       const sqlInsertar = `
         INSERT INTO "${tabla}" ("${campoDNI}", "Mes", "${campoJson}")
         VALUES ($1, $2, $3)
       `;
       await RDP02_DB_INSTANCES.query(sqlInsertar, [
-        dni,
+        identificador,
         mes,
         JSON.stringify(nuevoJson),
       ]);
 
+      const tipoIdentificador = esDirectivo ? "Id_Directivo" : "DNI";
       return {
         exito: true,
-        mensaje: `Nuevo registro creado para DNI ${dni} en mes ${mes}`,
+        mensaje: `Nuevo registro creado para ${tipoIdentificador} ${identificador} en mes ${mes}`,
       };
     }
   } catch (error) {
@@ -199,6 +213,7 @@ async function registrarAsistenciaConValoresPersonalizados(
 
 /**
  * Persiste los registros de asistencia de personal de Redis en las tablas JSON mensuales correspondientes
+ * 🆕 ACTUALIZADA con soporte completo para directivos
  */
 export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
   registros: RegistroPersonalRedis[]
@@ -229,34 +244,58 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
     const errores: string[] = [];
 
     // Obtener el mes y día usando tu función de fechas actuales
-    // Esto respeta el mockeo y usa UTC correctamente
     const { fechaLocalPeru } = obtenerFechasActuales();
-    const mesActual = fechaLocalPeru.getUTCMonth() + 1; // Usar UTC
-    const diaActual = fechaLocalPeru.getUTCDate(); // Usar UTC
+    const mesActual = fechaLocalPeru.getUTCMonth() + 1;
+    const diaActual = fechaLocalPeru.getUTCDate();
 
     console.log(
       `📅 Procesando registros para el mes ${mesActual}, día ${diaActual}`
     );
     console.log(`📊 Total de registros a procesar: ${registros.length}`);
 
-    // Agrupar registros por DNI y modo para optimizar el procesamiento
-    const registrosAgrupados = new Map<string, RegistroPersonalRedis[]>();
+    // Separar registros de directivos de otros roles
+    const registrosDirectivos = registros.filter(
+      (r) => r.rol === RolesSistema.Directivo
+    );
+    const registrosOtrosRoles = registros.filter(
+      (r) => r.rol !== RolesSistema.Directivo
+    );
 
-    for (const registro of registros) {
+    console.log(`🏢 Registros de directivos: ${registrosDirectivos.length}`);
+    console.log(`👥 Registros de otros roles: ${registrosOtrosRoles.length}`);
+
+    // Agrupar registros no-directivos por DNI y modo para optimizar
+    const registrosAgrupadosNormales = new Map<
+      string,
+      RegistroPersonalRedis[]
+    >();
+    for (const registro of registrosOtrosRoles) {
       const clave = `${registro.dni}-${registro.modoRegistro}`;
-      if (!registrosAgrupados.has(clave)) {
-        registrosAgrupados.set(clave, []);
+      if (!registrosAgrupadosNormales.has(clave)) {
+        registrosAgrupadosNormales.set(clave, []);
       }
-      registrosAgrupados.get(clave)!.push(registro);
+      registrosAgrupadosNormales.get(clave)!.push(registro);
+    }
+
+    // 🆕 PROCESAR DIRECTIVOS (ya vienen con Id_Directivo desde Redis)
+    const registrosAgrupadosDirectivos = new Map<
+      string,
+      RegistroPersonalRedis[]
+    >();
+    for (const registro of registrosDirectivos) {
+      const clave = `${registro.dni}-${registro.modoRegistro}`; // dni contiene Id_Directivo como string
+      if (!registrosAgrupadosDirectivos.has(clave)) {
+        registrosAgrupadosDirectivos.set(clave, []);
+      }
+      registrosAgrupadosDirectivos.get(clave)!.push(registro);
     }
 
     console.log(
-      `🔄 Procesando ${registrosAgrupados.size} grupos únicos de DNI-Modo`
+      `🔄 Procesando ${registrosAgrupadosNormales.size} grupos normales + ${registrosAgrupadosDirectivos.size} grupos de directivos`
     );
 
-    // Procesar cada grupo de registros
-    for (const [clave, grupoRegistros] of registrosAgrupados) {
-      // Tomar el registro más reciente de cada grupo
+    // PROCESAR REGISTROS NORMALES (sin conversión)
+    for (const [clave, grupoRegistros] of registrosAgrupadosNormales) {
       const registroMasReciente = grupoRegistros.reduce((max, current) =>
         current.timestamp > max.timestamp ? current : max
       );
@@ -290,7 +329,7 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
         const resultado = await registrarAsistenciaConValoresPersonalizados(
           tabla,
           campoDNI,
-          dni,
+          dni, // Para roles normales, usar DNI directamente
           mesActual,
           diaActual,
           campoJSON,
@@ -298,7 +337,8 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
             Timestamp: timestamp,
             DesfaseSegundos: desfaseSegundos,
           },
-          rol
+          rol,
+          false // No es directivo
         );
 
         if (resultado.exito) {
@@ -313,7 +353,6 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
           registrosIgnorados++;
         }
 
-        // Si había múltiples registros en el grupo, reportarlo
         if (grupoRegistros.length > 1) {
           console.log(
             `🔄 Se procesaron ${grupoRegistros.length} registros duplicados para ${dni}-${modoRegistro}, se tomó el más reciente`
@@ -321,6 +360,90 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
         }
       } catch (error) {
         const mensajeError = `Error al procesar registro para DNI ${dni}: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+        console.error(`❌ ${mensajeError}`);
+        errores.push(mensajeError);
+        registrosIgnorados++;
+      }
+    }
+
+    // 🆕 PROCESAR REGISTROS DE DIRECTIVOS (sin conversión - ya vienen con Id_Directivo)
+    for (const [clave, grupoRegistros] of registrosAgrupadosDirectivos) {
+      const registroMasReciente = grupoRegistros.reduce((max, current) =>
+        current.timestamp > max.timestamp ? current : max
+      );
+
+      const {
+        modoRegistro,
+        rol,
+        dni,
+        timestamp,
+        desfaseSegundos,
+        idDirectivo,
+      } = registroMasReciente;
+
+      try {
+        console.log(
+          `🏢 Procesando directivo con Id_Directivo: ${idDirectivo} (valor dni: ${dni})`
+        );
+
+        // Validar que tenemos el Id_Directivo
+        if (!idDirectivo) {
+          const error = `Id_Directivo faltante para registro: ${dni}`;
+          console.error(`❌ ${error}`);
+          errores.push(error);
+          registrosIgnorados++;
+          continue;
+        }
+
+        // Obtener configuración de tabla para directivos
+        const config = obtenerConfiguracionTabla(rol, modoRegistro);
+        if (!config) {
+          const error = `Configuración no encontrada para directivo: ${rol}, modo: ${modoRegistro}`;
+          console.warn(`⚠️  ${error}`);
+          errores.push(error);
+          registrosIgnorados++;
+          continue;
+        }
+
+        const { tabla, campoDNI, campoJSON } = config;
+
+        // Registrar usando Id_Directivo directamente (sin conversión)
+        const resultado = await registrarAsistenciaConValoresPersonalizados(
+          tabla,
+          campoDNI,
+          idDirectivo, // 🆕 Usar Id_Directivo directamente
+          mesActual,
+          diaActual,
+          campoJSON,
+          {
+            Timestamp: timestamp,
+            DesfaseSegundos: desfaseSegundos,
+          },
+          rol,
+          true // Es directivo
+        );
+
+        if (resultado.exito) {
+          if (modoRegistro === ModoRegistro.Entrada) {
+            registrosEntradaGuardados++;
+          } else {
+            registrosSalidaGuardados++;
+          }
+          console.log(`✅ Directivo: ${resultado.mensaje}`);
+        } else {
+          console.log(`ℹ️  Directivo: ${resultado.mensaje}`);
+          registrosIgnorados++;
+        }
+
+        if (grupoRegistros.length > 1) {
+          console.log(
+            `🔄 Se procesaron ${grupoRegistros.length} registros duplicados de directivo para Id_Directivo ${idDirectivo}, se tomó el más reciente`
+          );
+        }
+      } catch (error) {
+        const mensajeError = `Error al procesar registro de directivo para Id_Directivo ${idDirectivo}: ${
           error instanceof Error ? error.message : String(error)
         }`;
         console.error(`❌ ${mensajeError}`);

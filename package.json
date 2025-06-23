@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Tareas Programadas SIASIS - Parte 1",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "SetDatosAsistenciaDiaria": "ts-node ./src/jobs/asistencia/SetDatosAsistenciaDiaria.ts",
+    "SetAsistenciasYFaltasDePersonal": "ts-node ./src/jobs/asistencia/SetAsistenciasYFaltasDePersonal.ts"
   },
   "author": "SIASIS",
   "license": "MIT",

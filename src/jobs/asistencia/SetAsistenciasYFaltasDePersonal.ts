@@ -122,7 +122,7 @@ async function main() {
         } else {
           resultado.personalSinRegistroEntrada.forEach((persona) => {
             console.log(
-              `❌ ${persona.nombreCompleto} (${persona.dni}) - ${persona.rol}`
+              `❌ ${persona.nombreCompleto} (${persona.id_o_dni}) - ${persona.rol}`
             );
           });
         }
@@ -134,7 +134,7 @@ async function main() {
         } else {
           resultado.personalSinRegistroSalida.forEach((persona) => {
             console.log(
-              `❌ ${persona.nombreCompleto} (${persona.dni}) - ${persona.rol}`
+              `❌ ${persona.nombreCompleto} (${persona.id_o_dni}) - ${persona.rol}`
             );
           });
         }

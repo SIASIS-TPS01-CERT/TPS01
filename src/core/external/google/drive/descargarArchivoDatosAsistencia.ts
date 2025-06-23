@@ -16,10 +16,15 @@ export async function descargarArchivoDatosAsistenciaDesdeGoogleDrive(
 
     return datosAsistencia;
   } catch (error) {
-    console.error(
-      "Error al descargar datos de asistencia desde Google Drive:",
-      error
-    );
-    throw error;
+    // try {
+      // const response = await fetch(process.env.);
+      // const datosAsistencia = await response.json();
+    // } catch (error) {
+      console.error(
+        "Error al descargar datos de asistencia desde Google Drive:",
+        error
+      );
+      throw error;
+    // }
   }
 }

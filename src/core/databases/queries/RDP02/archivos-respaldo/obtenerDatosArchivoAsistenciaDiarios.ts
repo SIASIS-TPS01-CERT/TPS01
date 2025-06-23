@@ -29,66 +29,164 @@ export async function obtenerUltimoArchivoAsistencia(): Promise<string> {
   }
 }
 
+
 export async function obtenerPersonalActivoDesdeJSON(
   datosAsistencia: DatosAsistenciaHoyIE20935
 ): Promise<PersonalActivo[]> {
   const personalActivo: PersonalActivo[] = [];
 
+  // 🆕 DIRECTIVOS - NUEVA SECCIÓN
+  if (
+    datosAsistencia.ListaDeDirectivos &&
+    datosAsistencia.ListaDeDirectivos.length > 0
+  ) {
+    console.log(
+      `🏢 Procesando ${datosAsistencia.ListaDeDirectivos.length} directivos del JSON...`
+    );
+
+    for (const directivo of datosAsistencia.ListaDeDirectivos) {
+      // 🔄 Convertir DNI → Id_Directivo para compatibilidad con BD
+
+      personalActivo.push({
+        id_o_dni: String(directivo.Id_Directivo), // ⚠️ IMPORTANTE: Usar Id_Directivo como string para compatibilidad
+        rol: RolesSistema.Directivo,
+        tablaMensualEntrada: "T_Control_Entrada_Mensual_Directivos",
+        tablaMensualSalida: "T_Control_Salida_Mensual_Directivos",
+        campoId: "Id_C_E_M_P_Directivo",
+        campoID_o_DNI: "Id_Directivo", // Campo en BD que usa Id_Directivo
+        nombreCompleto: `${directivo.Nombres} ${directivo.Apellidos}`,
+        horaEntradaEsperada: String(directivo.Hora_Entrada_Dia_Actual),
+        horaSalidaEsperada: String(directivo.Hora_Salida_Dia_Actual),
+      });
+
+      console.log(
+        `✅ Directivo agregado: ${directivo.Nombres} ${directivo.Apellidos} (DNI: ${directivo.DNI} → Id: ${directivo.Id_Directivo})`
+      );
+    }
+  } else {
+    console.log("ℹ️  No se encontraron directivos en ListaDeDirectivos");
+  }
+
   // Auxiliares
-  datosAsistencia.ListaDeAuxiliares.forEach((auxiliar) => {
-    personalActivo.push({
-      dni: auxiliar.DNI_Auxiliar,
-      rol: RolesSistema.Auxiliar,
-      tablaMensualEntrada: "T_Control_Entrada_Mensual_Auxiliar",
-      tablaMensualSalida: "T_Control_Salida_Mensual_Auxiliar",
-      campoId: "Id_C_E_M_P_Auxiliar",
-      campoDNI: "DNI_Auxiliar",
-      nombreCompleto: `${auxiliar.Nombres} ${auxiliar.Apellidos}`,
+  if (
+    datosAsistencia.ListaDeAuxiliares &&
+    datosAsistencia.ListaDeAuxiliares.length > 0
+  ) {
+    console.log(
+      `👥 Procesando ${datosAsistencia.ListaDeAuxiliares.length} auxiliares...`
+    );
+    datosAsistencia.ListaDeAuxiliares.forEach((auxiliar) => {
+      personalActivo.push({
+        id_o_dni: auxiliar.DNI_Auxiliar,
+        rol: RolesSistema.Auxiliar,
+        tablaMensualEntrada: "T_Control_Entrada_Mensual_Auxiliar",
+        tablaMensualSalida: "T_Control_Salida_Mensual_Auxiliar",
+        campoId: "Id_C_E_M_P_Auxiliar",
+        campoID_o_DNI: "DNI_Auxiliar",
+        nombreCompleto: `${auxiliar.Nombres} ${auxiliar.Apellidos}`,
+      });
     });
-  });
+  }
 
   // Profesores Primaria
-  datosAsistencia.ListaDeProfesoresPrimaria.forEach((profesor) => {
-    personalActivo.push({
-      dni: profesor.DNI_Profesor_Primaria,
-      rol: RolesSistema.ProfesorPrimaria,
-      tablaMensualEntrada: "T_Control_Entrada_Mensual_Profesores_Primaria",
-      tablaMensualSalida: "T_Control_Salida_Mensual_Profesores_Primaria",
-      campoId: "Id_C_E_M_P_Profesores_Primaria",
-      campoDNI: "DNI_Profesor_Primaria",
-      nombreCompleto: `${profesor.Nombres} ${profesor.Apellidos}`,
+  if (
+    datosAsistencia.ListaDeProfesoresPrimaria &&
+    datosAsistencia.ListaDeProfesoresPrimaria.length > 0
+  ) {
+    console.log(
+      `🎓 Procesando ${datosAsistencia.ListaDeProfesoresPrimaria.length} profesores de primaria...`
+    );
+    datosAsistencia.ListaDeProfesoresPrimaria.forEach((profesor) => {
+      personalActivo.push({
+        id_o_dni: profesor.DNI_Profesor_Primaria,
+        rol: RolesSistema.ProfesorPrimaria,
+        tablaMensualEntrada: "T_Control_Entrada_Mensual_Profesores_Primaria",
+        tablaMensualSalida: "T_Control_Salida_Mensual_Profesores_Primaria",
+        campoId: "Id_C_E_M_P_Profesores_Primaria",
+        campoID_o_DNI: "DNI_Profesor_Primaria",
+        nombreCompleto: `${profesor.Nombres} ${profesor.Apellidos}`,
+      });
     });
-  });
+  }
 
   // Profesores Secundaria
-  datosAsistencia.ListaDeProfesoresSecundaria.forEach((profesor) => {
-    personalActivo.push({
-      dni: profesor.DNI_Profesor_Secundaria,
-      rol: RolesSistema.ProfesorSecundaria,
-      tablaMensualEntrada: "T_Control_Entrada_Mensual_Profesores_Secundaria",
-      tablaMensualSalida: "T_Control_Salida_Mensual_Profesores_Secundaria",
-      campoId: "Id_C_E_M_P_Profesores_Secundaria",
-      campoDNI: "DNI_Profesor_Secundaria",
-      nombreCompleto: `${profesor.Nombres} ${profesor.Apellidos}`,
-      horaEntradaEsperada: String(profesor.Hora_Entrada_Dia_Actual),
-      horaSalidaEsperada: String(profesor.Hora_Salida_Dia_Actual),
+  if (
+    datosAsistencia.ListaDeProfesoresSecundaria &&
+    datosAsistencia.ListaDeProfesoresSecundaria.length > 0
+  ) {
+    console.log(
+      `🏫 Procesando ${datosAsistencia.ListaDeProfesoresSecundaria.length} profesores de secundaria...`
+    );
+    datosAsistencia.ListaDeProfesoresSecundaria.forEach((profesor) => {
+      personalActivo.push({
+        id_o_dni: profesor.DNI_Profesor_Secundaria,
+        rol: RolesSistema.ProfesorSecundaria,
+        tablaMensualEntrada: "T_Control_Entrada_Mensual_Profesores_Secundaria",
+        tablaMensualSalida: "T_Control_Salida_Mensual_Profesores_Secundaria",
+        campoId: "Id_C_E_M_P_Profesores_Secundaria",
+        campoID_o_DNI: "DNI_Profesor_Secundaria",
+        nombreCompleto: `${profesor.Nombres} ${profesor.Apellidos}`,
+        horaEntradaEsperada: String(profesor.Hora_Entrada_Dia_Actual),
+        horaSalidaEsperada: String(profesor.Hora_Salida_Dia_Actual),
+      });
     });
-  });
+  }
 
   // Personal Administrativo
-  datosAsistencia.ListaDePersonalesAdministrativos.forEach((personal) => {
-    personalActivo.push({
-      dni: personal.DNI_Personal_Administrativo,
-      rol: RolesSistema.PersonalAdministrativo,
-      tablaMensualEntrada: "T_Control_Entrada_Mensual_Personal_Administrativo",
-      tablaMensualSalida: "T_Control_Salida_Mensual_Personal_Administrativo",
-      campoId: "Id_C_E_M_P_Administrativo",
-      campoDNI: "DNI_Personal_Administrativo",
-      nombreCompleto: `${personal.Nombres} ${personal.Apellidos}`,
-      horaEntradaEsperada: String(personal.Horario_Laboral_Entrada),
-      horaSalidaEsperada: String(personal.Horario_Laboral_Salida),
+  if (
+    datosAsistencia.ListaDePersonalesAdministrativos &&
+    datosAsistencia.ListaDePersonalesAdministrativos.length > 0
+  ) {
+    console.log(
+      `💼 Procesando ${datosAsistencia.ListaDePersonalesAdministrativos.length} personal administrativo...`
+    );
+    datosAsistencia.ListaDePersonalesAdministrativos.forEach((personal) => {
+      personalActivo.push({
+        id_o_dni: personal.DNI_Personal_Administrativo,
+        rol: RolesSistema.PersonalAdministrativo,
+        tablaMensualEntrada:
+          "T_Control_Entrada_Mensual_Personal_Administrativo",
+        tablaMensualSalida: "T_Control_Salida_Mensual_Personal_Administrativo",
+        campoId: "Id_C_E_M_P_Administrativo",
+        campoID_o_DNI: "DNI_Personal_Administrativo",
+        nombreCompleto: `${personal.Nombres} ${personal.Apellidos}`,
+        horaEntradaEsperada: String(personal.Hora_Entrada_Dia_Actual),
+        horaSalidaEsperada: String(personal.Hora_Salida_Dia_Actual),
+      });
     });
-  });
+  }
+
+  console.log("\n=== 📊 Resumen de personal activo extraído del JSON ===");
+  console.log(
+    `🏢 Directivos: ${
+      personalActivo.filter((p) => p.rol === RolesSistema.Directivo).length
+    }`
+  );
+  console.log(
+    `👥 Auxiliares: ${
+      personalActivo.filter((p) => p.rol === RolesSistema.Auxiliar).length
+    }`
+  );
+  console.log(
+    `🎓 Profesores Primaria: ${
+      personalActivo.filter((p) => p.rol === RolesSistema.ProfesorPrimaria)
+        .length
+    }`
+  );
+  console.log(
+    `🏫 Profesores Secundaria: ${
+      personalActivo.filter((p) => p.rol === RolesSistema.ProfesorSecundaria)
+        .length
+    }`
+  );
+  console.log(
+    `💼 Personal Administrativo: ${
+      personalActivo.filter(
+        (p) => p.rol === RolesSistema.PersonalAdministrativo
+      ).length
+    }`
+  );
+  console.log(`📊 Total personal activo: ${personalActivo.length}`);
 
   return personalActivo;
 }

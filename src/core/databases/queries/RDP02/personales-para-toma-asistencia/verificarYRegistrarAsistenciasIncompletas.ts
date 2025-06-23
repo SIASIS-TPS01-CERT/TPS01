@@ -4,12 +4,12 @@ import { registrarAsistenciaConValoresNull } from "./registrarAsistenciaAutoNull
 import { verificarTablasPorRol } from "./verificarTablasPorRol";
 
 export interface PersonalActivo {
-  dni: string;
+  id_o_dni: string;
   rol: RolesSistema;
   tablaMensualEntrada: string;
   tablaMensualSalida: string;
   campoId: string;
-  campoDNI: string;
+  campoID_o_DNI: string;
   nombreCompleto: string;
   horaEntradaEsperada?: string;
   horaSalidaEsperada?: string;
@@ -45,8 +45,8 @@ export async function verificarYRegistrarAsistenciasIncompletas(
       try {
         const tieneEntrada = await verificarExistenciaRegistroDiario(
           tablaEntradaReal,
-          persona.campoDNI,
-          persona.dni,
+          persona.campoID_o_DNI,
+          persona.id_o_dni,
           mes,
           dia,
           "Entradas"
@@ -56,8 +56,8 @@ export async function verificarYRegistrarAsistenciasIncompletas(
           // Registrar entrada con timestamp: null y desfaseSegundos: null
           await registrarAsistenciaConValoresNull(
             tablaEntradaReal,
-            persona.campoDNI,
-            persona.dni,
+            persona.campoID_o_DNI,
+            persona.id_o_dni,
             mes,
             dia,
             "Entradas"
@@ -67,7 +67,7 @@ export async function verificarYRegistrarAsistenciasIncompletas(
         }
       } catch (error) {
         console.error(
-          `Error al verificar entrada para ${persona.nombreCompleto} (${persona.dni}):`,
+          `Error al verificar entrada para ${persona.nombreCompleto} (${persona.id_o_dni}):`,
           error
         );
       }
@@ -83,8 +83,8 @@ export async function verificarYRegistrarAsistenciasIncompletas(
       try {
         const tieneSalida = await verificarExistenciaRegistroDiario(
           tablaSalidaReal,
-          persona.campoDNI,
-          persona.dni,
+          persona.campoID_o_DNI,
+          persona.id_o_dni,
           mes,
           dia,
           "Salidas"
@@ -94,8 +94,8 @@ export async function verificarYRegistrarAsistenciasIncompletas(
           // Registrar salida con timestamp: null y desfaseSegundos: null
           await registrarAsistenciaConValoresNull(
             tablaSalidaReal,
-            persona.campoDNI,
-            persona.dni,
+            persona.campoID_o_DNI,
+            persona.id_o_dni,
             mes,
             dia,
             "Salidas"
@@ -105,7 +105,7 @@ export async function verificarYRegistrarAsistenciasIncompletas(
         }
       } catch (error) {
         console.error(
-          `Error al verificar salida para ${persona.nombreCompleto} (${persona.dni}):`,
+          `Error al verificar salida para ${persona.nombreCompleto} (${persona.id_o_dni}):`,
           error
         );
       }

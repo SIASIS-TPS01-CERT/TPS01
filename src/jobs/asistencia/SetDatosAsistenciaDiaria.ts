@@ -21,6 +21,7 @@ import { obtenerAuxiliaresParaTomarAsistencia } from "../../core/databases/queri
 import { actualizarArchivoDatosAsistenciaDiariosRespaldoEnGoogleDrive } from "../../core/external/google/drive/actualizarArchivoDatosAsistencia";
 import { registrarAsistenciaAutoNullParaPersonalInactivo } from "../../core/databases/queries/RDP02/personales-para-toma-asistencia/registrarAsistenciaAutoNullParaPersonalInactivo";
 import { obtenerVacacionesInterescolares } from "../../core/databases/queries/RDP02/vacaciones-interescolares/obtenerVacacionesInterescolares";
+import { obtenerDirectivosParaTomarAsistencia } from "../../core/databases/queries/RDP02/directivos/obtenerDirectivosParaTomaDeAsistencia";
 
 async function generarDatosAsistenciaDiaria(): Promise<DatosAsistenciaHoyIE20935> {
   // Obtener fechas actuales
@@ -60,6 +61,13 @@ async function generarDatosAsistenciaDiaria(): Promise<DatosAsistenciaHoyIE20935
       semanaGestion
     );
 
+  // 🆕 NUEVA LLAMADA PARA DIRECTIVOS
+  const directivos = await obtenerDirectivosParaTomarAsistencia(
+    fechaLocalPeru,
+    vacacionesInterescolares,
+    semanaGestion
+  );
+
   const profesoresPrimaria =
     await obtenerProfesoresPrimariaParaTomarAsistencia();
 
@@ -94,6 +102,7 @@ async function generarDatosAsistenciaDiaria(): Promise<DatosAsistenciaHoyIE20935
     ListaDePersonalesAdministrativos: personalAdministrativo,
     ListaDeProfesoresPrimaria: profesoresPrimaria,
     ListaDeProfesoresSecundaria: profesoresSecundaria,
+    ListaDeDirectivos: directivos,
     HorariosLaboraresGenerales: horariosGenerales,
     HorariosEscolares: horariosEscolares,
   };
@@ -146,7 +155,9 @@ async function main() {
     // Imprimir en consola para verificación
     console.log(JSON.stringify(datosAsistencia, null, 2));
 
-    console.log("Datos de asistencia generados y guardados correctamente.");
+    console.log(
+      "✅ Datos de asistencia generados y guardados correctamente (incluyendo directivos)."
+    );
   } catch (error) {
     console.error("Error al generar datos de asistencia:", error);
     process.exit(1); // Terminar con código de error

@@ -3,6 +3,7 @@ import { NivelEducativo } from "../NivelEducativo";
 import {
   T_Auxiliares,
   T_Comunicados,
+  T_Directivos,
   T_Eventos,
   T_Personal_Administrativo,
   T_Profesores_Primaria,
@@ -20,6 +21,19 @@ export interface HorarioLaboral {
   Salida: Date;
 }
 
+export type DirectivoParaTomaDeAsistencia = Pick<
+  T_Directivos,
+  | "Id_Directivo"
+  | "DNI"
+  | "Nombres"
+  | "Apellidos"
+  | "Genero"
+  | "Google_Drive_Foto_ID"
+> & {
+  Hora_Entrada_Dia_Actual: Date;
+  Hora_Salida_Dia_Actual: Date;
+};
+
 export type PersonalAdministrativoParaTomaDeAsistencia = Pick<
   T_Personal_Administrativo,
   | "DNI_Personal_Administrativo"
@@ -28,8 +42,6 @@ export type PersonalAdministrativoParaTomaDeAsistencia = Pick<
   | "Apellidos"
   | "Cargo"
   | "Google_Drive_Foto_ID"
-  | "Horario_Laboral_Entrada"
-  | "Horario_Laboral_Salida"
 > & {
   Hora_Entrada_Dia_Actual: Date;
   Hora_Salida_Dia_Actual: Date;
@@ -84,6 +96,8 @@ export interface DatosAsistenciaHoyIE20935 {
   ListaDeProfesoresPrimaria: ProfesoresPrimariaParaTomaDeAsistencia[];
 
   ListaDeProfesoresSecundaria: ProfesorTutorSecundariaParaTomaDeAsistencia[];
+
+  ListaDeDirectivos: DirectivoParaTomaDeAsistencia[];
 
   ListaDeAuxiliares: AuxiliaresParaTomaDeAsistencia[];
 

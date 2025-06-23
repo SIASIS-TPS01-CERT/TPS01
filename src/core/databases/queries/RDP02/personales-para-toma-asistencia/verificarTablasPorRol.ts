@@ -1,67 +1,104 @@
-import RDP02_DB_INSTANCES from '../../../connectors/postgres';
+import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
+/**
+ * Verifica qué tablas de control de asistencia existen realmente en la base de datos
+ * 🆕 ACTUALIZADA para incluir tablas de directivos
+ * @returns Map con nombres de tabla esperados como clave y nombres reales como valor
+ */
 export async function verificarTablasPorRol(): Promise<Map<string, string>> {
-  // Lista de todas las posibles tablas de control de asistencia
-  const tablasNecesarias = [
-    "T_Control_Entrada_Mensual_Auxiliar",
-    "T_Control_Salida_Mensual_Auxiliar",
-    "T_Control_Entrada_Mensual_Profesores_Primaria",
-    "T_Control_Salida_Mensual_Profesores_Primaria",
-    "T_Control_Entrada_Mensual_Profesores_Secundaria",
-    "T_Control_Salida_Mensual_Profesores_Secundaria",
-    "T_Control_Entrada_Mensual_Personal_Administrativo",
-    "T_Control_Salida_Mensual_Personal_Administrativo",
-  ];
-
-  // Convertir a formato para PostgreSQL
-  const tablasFormateadas = tablasNecesarias.map((t) => {
-    return t
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join("_");
-  });
-
-  // Convertir a minúsculas para comparación
-  const tablasMinusculas = tablasFormateadas.map((t) => t.toLowerCase());
-
-  // Verificar qué tablas existen
-  const sql = `
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-    AND (table_name = ANY($1) OR LOWER(table_name) = ANY($2))
-  `;
-
   try {
-    const result = await RDP02_DB_INSTANCES.query(sql, [tablasFormateadas, tablasMinusculas]);
+    // Lista de todas las tablas que el sistema espera encontrar
+    const tablasEsperadas = [
+      // 🆕 NUEVAS TABLAS PARA DIRECTIVOS
+      "T_Control_Entrada_Mensual_Directivos",
+      "T_Control_Salida_Mensual_Directivos",
 
-    // Crear un mapeo entre los nombres originales y los nombres reales
-    const tablasExistentes = new Map<string, string>();
+      // Tablas existentes
+      "T_Control_Entrada_Mensual_Auxiliar",
+      "T_Control_Salida_Mensual_Auxiliar",
+      "T_Control_Entrada_Mensual_Profesores_Primaria",
+      "T_Control_Salida_Mensual_Profesores_Primaria",
+      "T_Control_Entrada_Mensual_Profesores_Secundaria",
+      "T_Control_Salida_Mensual_Profesores_Secundaria",
+      "T_Control_Entrada_Mensual_Personal_Administrativo",
+      "T_Control_Salida_Mensual_Personal_Administrativo",
+    ];
 
     console.log(
-      "Tablas encontradas en la base de datos:",
-      result.rows.map((r: any) => r.table_name)
+      `🔍 Verificando existencia de ${tablasEsperadas.length} tablas...`
     );
 
-    // Para cada nombre original, buscar su correspondiente en el resultado
-    tablasNecesarias.forEach((nombreOriginal, index) => {
-      const tablaFormateada = tablasFormateadas[index];
-      const tablaMinuscula = tablasMinusculas[index];
+    // Construir consulta SQL para verificar existencia de tablas
+    const placeholders = tablasEsperadas
+      .map((_, index) => `$${index + 1}`)
+      .join(", ");
+    const sql = `
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name IN (${placeholders})
+    `;
 
-      const encontrada = result.rows.find(
-        (row: any) => row.table_name.toLowerCase() === tablaMinuscula
-      );
+    const result = await RDP02_DB_INSTANCES.query(sql, tablasEsperadas, false);
 
-      if (encontrada) {
-        tablasExistentes.set(nombreOriginal, encontrada.table_name);
+    // Crear mapa de tablas que existen
+    const tablasExistentes = new Map<string, string>();
+    const tablasEncontradas = result.rows.map((row: any) => row.table_name);
+
+    // Mapear tablas esperadas con las encontradas
+    for (const tabla of tablasEsperadas) {
+      if (tablasEncontradas.includes(tabla)) {
+        tablasExistentes.set(tabla, tabla);
       }
-    });
+    }
 
-    console.log("Mapeo de tablas:", Object.fromEntries(tablasExistentes));
+    console.log(
+      `✅ Tablas encontradas: ${tablasExistentes.size}/${tablasEsperadas.length}`
+    );
+
+    // Reportar tablas faltantes
+    const tablasFaltantes = tablasEsperadas.filter(
+      (tabla) => !tablasExistentes.has(tabla)
+    );
+    if (tablasFaltantes.length > 0) {
+      console.warn(`⚠️  Tablas faltantes (${tablasFaltantes.length}):`);
+      tablasFaltantes.forEach((tabla) => {
+        console.warn(`   - ${tabla}`);
+      });
+    }
+
+    // 🆕 Reportar específicamente sobre tablas de directivos
+    const tablasDirectivos = [
+      "T_Control_Entrada_Mensual_Directivos",
+      "T_Control_Salida_Mensual_Directivos",
+    ];
+
+    const tablasDirectivosExistentes = tablasDirectivos.filter((tabla) =>
+      tablasExistentes.has(tabla)
+    );
+    console.log(
+      `🏢 Tablas de directivos encontradas: ${tablasDirectivosExistentes.length}/${tablasDirectivos.length}`
+    );
+
+    if (tablasDirectivosExistentes.length === tablasDirectivos.length) {
+      console.log(
+        "✅ Soporte completo para asistencia de directivos disponible"
+      );
+    } else {
+      console.warn(
+        "⚠️  Soporte parcial para directivos - algunas tablas faltan:"
+      );
+      tablasDirectivos
+        .filter((tabla) => !tablasExistentes.has(tabla))
+        .forEach((tabla) => {
+          console.warn(`   - ${tabla}`);
+        });
+    }
 
     return tablasExistentes;
   } catch (error) {
-    console.error("Error al verificar tablas de control de asistencia:", error);
-    return new Map();
+    console.error("❌ Error al verificar tablas por rol:", error);
+    // Retornar mapa vacío en caso de error
+    return new Map<string, string>();
   }
 }
