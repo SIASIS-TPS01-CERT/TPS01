@@ -1,80 +1,78 @@
 import { RolesSistema } from "../../../../../interfaces/shared/RolesSistema";
-import RDP02_DB_INSTANCES from '../../../connectors/postgres';
+import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
 /**
- * Convierte roles del enum RolesSistema a sus correspondientes IDs en la tabla T_Bloqueo_Roles
- * @param roles Array de roles del enum RolesSistema
- * @returns Array de IDs de roles
- */
-export async function obtenerIdsRoles(
-  roles: RolesSistema[]
-): Promise<number[]> {
-  try {
-    const rolesStr = roles.map((r) => `'${r}'`).join(", ");
-    const sql = `
-        SELECT "Id_Bloqueo_Rol"
-        FROM "T_Bloqueo_Roles"
-        WHERE "Rol" IN (${rolesStr})
-      `;
-
-    const result = await RDP02_DB_INSTANCES.query(sql);
-    return result.rows.map((row: any) => row.Id_Bloqueo_Rol);
-  } catch (error) {
-    console.error("Error al obtener IDs de roles:", error);
-    throw error;
-  }
-}
-
-/**
- * Bloquea los roles especificados del sistema.
+ * Bloquea los roles especificados del sistema usando UPSERT.
  * @param roles Array de roles a bloquear. Si es null o vacío, bloquea todos los roles.
  * @param tiempoBloqueoMinutos Tiempo de bloqueo en minutos
  * @returns Void
  */
 export async function bloquearRoles(
   roles: RolesSistema[] | null = null,
-  tiempoBloqueoMinutos: number = 10
+  tiempoBloqueoMinutos?: number
 ): Promise<void> {
   try {
-    const timestamp = Date.now() + tiempoBloqueoMinutos * 60 * 1000;
+    const timestamp = tiempoBloqueoMinutos
+      ? Date.now() + tiempoBloqueoMinutos * 60 * 1000
+      : 0;
 
     if (!roles || roles.length === 0) {
       console.log("Bloqueando todos los roles del sistema...");
-      const sql = `
-          UPDATE "T_Bloqueo_Roles"
-          SET "Bloqueo_Total" = true, 
-              "Timestamp_Desbloqueo" = $1
-        `;
-      await RDP02_DB_INSTANCES.query(sql, [timestamp]);
+
+      // Obtener todos los roles del enum
+      const todosLosRoles = Object.values(RolesSistema).map((rol) =>
+        String(rol)
+      );
       console.log(
-        `Todos los roles han sido bloqueados por ${tiempoBloqueoMinutos} minutos`
+        `🔍 Debug - Todos los roles del enum: ${todosLosRoles.join(", ")}`
+      );
+
+      // UPSERT para cada rol
+      for (const rol of todosLosRoles) {
+        const upsertSql = `
+          INSERT INTO "T_Bloqueo_Roles" ("Rol", "Bloqueo_Total", "Timestamp_Desbloqueo")
+          VALUES ($1, true, $2)
+          ON CONFLICT ("Rol") 
+          DO UPDATE SET 
+            "Bloqueo_Total" = true,
+            "Timestamp_Desbloqueo" = $2
+        `;
+        await RDP02_DB_INSTANCES.query(upsertSql, [rol, timestamp]);
+      }
+
+      console.log(
+        `✅ Todos los roles han sido bloqueados por ${tiempoBloqueoMinutos} minutos`
       );
     } else {
       console.log(`Bloqueando roles específicos: ${roles.join(", ")}...`);
 
-      // Obtener los IDs correspondientes a los roles
-      const roleIds = await obtenerIdsRoles(roles);
+      // Convertir roles a string
+      const rolesArray = roles.map((rol) => String(rol));
+      console.log(
+        `🔍 Debug - Roles convertidos a string: ${rolesArray.join(", ")}`
+      );
 
-      if (roleIds.length === 0) {
-        console.warn("No se encontraron IDs para los roles especificados");
-        return;
+      // UPSERT para cada rol específico
+      for (const rol of rolesArray) {
+        const upsertSql = `
+          INSERT INTO "T_Bloqueo_Roles" ("Rol", "Bloqueo_Total", "Timestamp_Desbloqueo")
+          VALUES ($1, true, $2)
+          ON CONFLICT ("Rol") 
+          DO UPDATE SET 
+            "Bloqueo_Total" = true,
+            "Timestamp_Desbloqueo" = $2
+        `;
+        await RDP02_DB_INSTANCES.query(upsertSql, [rol, timestamp]);
       }
 
-      const sql = `
-          UPDATE "T_Bloqueo_Roles"
-          SET "Bloqueo_Total" = true, 
-              "Timestamp_Desbloqueo" = $1
-          WHERE "Id_Bloqueo_Rol" = ANY($2)
-        `;
-      await RDP02_DB_INSTANCES.query(sql, [timestamp, roleIds]);
       console.log(
-        `Roles ${roles.join(
+        `✅ Roles ${roles.join(
           ", "
         )} han sido bloqueados por ${tiempoBloqueoMinutos} minutos`
       );
     }
   } catch (error) {
-    console.error("Error al bloquear roles:", error);
+    console.error("❌ Error al bloquear roles:", error);
     throw error;
   }
 }

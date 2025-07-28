@@ -1,6 +1,6 @@
 import { RolesSistema } from "../../../../../interfaces/shared/RolesSistema";
-import { bloquearRoles, obtenerIdsRoles } from "./bloquearRoles";
-import RDP02_DB_INSTANCES from '../../../connectors/postgres';
+import { bloquearRoles } from "./bloquearRoles";
+import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
 /**
  * Desbloquea los roles especificados del sistema.
@@ -23,21 +23,16 @@ export async function desbloquearRoles(
     } else {
       console.log(`Desbloqueando roles específicos: ${roles.join(", ")}...`);
 
-      // Obtener los IDs correspondientes a los roles
-      const roleIds = await obtenerIdsRoles(roles);
-
-      if (roleIds.length === 0) {
-        console.warn("No se encontraron IDs para los roles especificados");
-        return;
-      }
+      // Crear array de parámetros para la consulta SQL
+      const rolesArray = roles.map((rol) => rol.toString());
 
       const sql = `
             UPDATE "T_Bloqueo_Roles"
             SET "Bloqueo_Total" = false, 
                 "Timestamp_Desbloqueo" = 0
-            WHERE "Id_Bloqueo_Rol" = ANY($1)
+            WHERE "Rol" = ANY($1)
           `;
-      await RDP02_DB_INSTANCES.query(sql, [roleIds]);
+      await RDP02_DB_INSTANCES.query(sql, [rolesArray]);
       console.log(`Roles ${roles.join(", ")} han sido desbloqueados`);
     }
   } catch (error) {
