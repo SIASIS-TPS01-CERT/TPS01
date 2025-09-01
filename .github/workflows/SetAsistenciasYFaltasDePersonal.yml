@@ -8,7 +8,7 @@ on:
     - cron: "30 0 * 3-12 2-6"
 
   # Permite la ejecución manual para pruebas
-  workflow_dispatch:
+  # workflow_dispatch:
 
 jobs:
   ejecutar-script-asistencia:
@@ -16,24 +16,21 @@ jobs:
 
     steps:
       - name: Checkout del repositorio
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
           cache: "npm"
 
       - name: Instalar dependencias
-        run: npm ci
-
-      - name: Instalar ts-node y pg
-        run: npm install -g ts-node typescript && npm install pg
+        run: npm install
 
       - name: Ejecutar script con ts-node
         run: |
           echo "Ejecutando script..."
-          ts-node ./src/jobs/asistencia/SetAsistenciasYFaltasDePersonal.ts
+          npx ts-node ./src/jobs/asistenciaDePersonal/SetAsistenciasYFaltasDePersonal.ts
         env:
           RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
           RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}

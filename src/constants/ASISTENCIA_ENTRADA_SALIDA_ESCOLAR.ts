@@ -1,0 +1,1 @@
+export const CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA = false;

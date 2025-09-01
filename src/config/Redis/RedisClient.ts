@@ -2,8 +2,7 @@
 
 import { Redis } from "@upstash/redis";
 import { TipoAsistencia } from "../../interfaces/shared/AsistenciaRequests";
-import { ENTORNO } from "../../constants/ENTORNO";
-import { Entorno } from "../../interfaces/shared/Entornos";
+
 
 // Estructura para almacenar las instancias de Redis
 type RedisInstances = {

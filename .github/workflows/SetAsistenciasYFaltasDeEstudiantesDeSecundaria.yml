@@ -1,0 +1,54 @@
+name: Ejecutar Script de registro de asistencias y faltas de Estudiantes de Secundaria Diarias
+
+on:
+  schedule:
+    # Ejecutar a las 7:45 PM hora de Perú (UTC-5) de lunes a viernes
+    # En GitHub Actions se usa UTC, por lo que 7:45 PM en Perú es 12:45 AM (00:45) UTC del día siguiente
+    # Solo en meses de marzo (3) a diciembre (12)
+    - cron: "45 0 * 3-12 2-6"
+
+  # Permite la ejecución manual para pruebas
+  workflow_dispatch:
+
+jobs:
+  ejecutar-script-asistencia:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Ejecutar script con ts-node
+        run: |
+          echo "Ejecutando script..."
+          npx ts-node ./src/jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria.ts
+        env:
+          RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
+          RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
+          RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
+          RDP03_INS1_DATABASE_URL: ${{ secrets.RDP03_INS1_DATABASE_URL }}
+          RDP03_INS2_DATABASE_URL: ${{ secrets.RDP03_INS2_DATABASE_URL }}
+          RDP03_INS3_DATABASE_URL: ${{ secrets.RDP03_INS3_DATABASE_URL }}
+          RDP03_INS4_DATABASE_URL: ${{ secrets.RDP03_INS4_DATABASE_URL }}
+          RDP03_INS5_DATABASE_URL: ${{ secrets.RDP03_INS5_DATABASE_URL }}
+          RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN }}
+          RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
+          RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
+          RDP05_INS1_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS1_REDIS_BD_BASE_URL_API }}
+          RDP05_INS1_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS1_REDIS_BD_TOKEN_FOR_API }}
+          RDP05_INS2_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS2_REDIS_BD_BASE_URL_API }}
+          RDP05_INS2_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS2_REDIS_BD_TOKEN_FOR_API }}
+          RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
+          RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
+          ENTORNO: ${{ secrets.ENTORNO }}

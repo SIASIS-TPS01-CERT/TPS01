@@ -98,8 +98,8 @@ export async function registrarAsistenciaAutoNullParaPersonalInactivo(): Promise
         const resultadoEntrada = await verificarYRegistrarAsistenciaInactiva(
           tablaEntradaReal,
           persona.campoId,
-          persona.campoDNI,
-          persona.dni,
+          persona.campoIdUsuario,
+          persona.id,
           mes,
           dia,
           "Entradas"
@@ -109,14 +109,14 @@ export async function registrarAsistenciaAutoNullParaPersonalInactivo(): Promise
         if (resultadoEntrada.actualizado) registrosActualizados++;
       } catch (error) {
         console.error(
-          `Error al registrar entrada null para ${persona.dni}:`,
+          `Error al registrar entrada null para ${persona.id}:`,
           error
         );
         errores++;
       }
     } else {
       console.warn(
-        `La tabla ${persona.tablaMensualEntrada} no existe en la base de datos. Omitiendo registro de entrada para ${persona.dni}`
+        `La tabla ${persona.tablaMensualEntrada} no existe en la base de datos. Omitiendo registro de entrada para ${persona.id}`
       );
     }
 
@@ -127,8 +127,8 @@ export async function registrarAsistenciaAutoNullParaPersonalInactivo(): Promise
         const resultadoSalida = await verificarYRegistrarAsistenciaInactiva(
           tablaSalidaReal,
           persona.campoId,
-          persona.campoDNI,
-          persona.dni,
+          persona.campoIdUsuario,
+          persona.id,
           mes,
           dia,
           "Salidas"
@@ -138,14 +138,14 @@ export async function registrarAsistenciaAutoNullParaPersonalInactivo(): Promise
         if (resultadoSalida.actualizado) registrosActualizados++;
       } catch (error) {
         console.error(
-          `Error al registrar salida null para ${persona.dni}:`,
+          `Error al registrar salida null para ${persona.id}:`,
           error
         );
         errores++;
       }
     } else {
       console.warn(
-        `La tabla ${persona.tablaMensualSalida} no existe en la base de datos. Omitiendo registro de salida para ${persona.dni}`
+        `La tabla ${persona.tablaMensualSalida} no existe en la base de datos. Omitiendo registro de salida para ${persona.id}`
       );
     }
   }
@@ -162,8 +162,8 @@ export async function registrarAsistenciaAutoNullParaPersonalInactivo(): Promise
 async function verificarYRegistrarAsistenciaInactiva(
   tabla: string,
   campoId: string,
-  campoDNI: string,
-  dni: string,
+  campoIdUsuario: string,
+  id: string,
   mes: number,
   dia: number,
   campoJson: "Entradas" | "Salidas"
@@ -173,10 +173,10 @@ async function verificarYRegistrarAsistenciaInactiva(
     const sqlVerificar = `
         SELECT "${campoId}", "${campoJson}"
         FROM "${tabla}"
-        WHERE "${campoDNI}" = $1 AND "Mes" = $2
+        WHERE "${campoIdUsuario}" = $1 AND "Mes" = $2
       `;
 
-    const resultVerificar = await RDP02_DB_INSTANCES.query(sqlVerificar, [dni, mes]);
+    const resultVerificar = await RDP02_DB_INSTANCES.query(sqlVerificar, [id, mes]);
 
     if (resultVerificar.rowCount > 0) {
       // Ya existe un registro, actualizarlo para agregar el día actual como null
@@ -216,11 +216,11 @@ async function verificarYRegistrarAsistenciaInactiva(
       nuevoJson[dia.toString()] = null;
 
       const sqlInsertar = `
-          INSERT INTO "${tabla}" ("${campoDNI}", "Mes", "${campoJson}")
+          INSERT INTO "${tabla}" ("${campoIdUsuario}", "Mes", "${campoJson}")
           VALUES ($1, $2, $3)
         `;
 
-      await RDP02_DB_INSTANCES.query(sqlInsertar, [dni, mes, nuevoJson]);
+      await RDP02_DB_INSTANCES.query(sqlInsertar, [id, mes, nuevoJson]);
       return { creado: true, actualizado: false };
     }
   } catch (error) {

@@ -1,4 +1,4 @@
-import { RangoFechas } from "../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
+import { RangoFechas } from "../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
 
 export function verificarDentroSemanaGestion(
   fechaActual: Date,

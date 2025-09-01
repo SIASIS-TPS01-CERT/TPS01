@@ -5,7 +5,7 @@ import { NivelEducativo } from "../../../NivelEducativo";
 import { SuccessResponseAPIBase } from "../../types";
 
 export interface RegistrarAsistenciaIndividualRequestBody {
-  DNI: string;
+  Id_Usuario: string;
   Actor: ActoresSistema | RolesSistema;
   ModoRegistro: ModoRegistro;
   FechaHoraEsperadaISO: string;

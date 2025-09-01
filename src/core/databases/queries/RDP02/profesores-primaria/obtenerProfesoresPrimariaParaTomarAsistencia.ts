@@ -7,7 +7,7 @@ export async function obtenerProfesoresPrimariaParaTomarAsistencia(): Promise<
 > {
   const sql = `
     SELECT 
-      "DNI_Profesor_Primaria", 
+      "Id_Profesor_Primaria", 
       "Genero", 
       "Nombres", 
       "Apellidos", 

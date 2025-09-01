@@ -1,4 +1,5 @@
 import { redisClient } from "../../../../config/Redis/RedisClient";
+import { EXPRESION_REGULAR_PARA_IDENTIFICADORES_SIASIS } from "../../../../constants/REGEXP";
 import { TipoAsistencia } from "../../../../interfaces/shared/AsistenciaRequests";
 import { RolesSistema } from "../../../../interfaces/shared/RolesSistema";
 import { obtenerFechasActuales } from "../../../utils/dates/obtenerFechasActuales";
@@ -8,19 +9,19 @@ export interface RegistroPersonalRedis {
   fecha: string;
   modoRegistro: string;
   rol: string;
-  dni: string; // Para la mayoría de roles será DNI, para directivos será Id_Directivo como string
+  id: string; // Para la mayoría de roles será ID, para directivos será Id_Directivo como string
   timestamp: number;
   desfaseSegundos: number;
   claveRedis: string;
   // 🆕 NUEVO CAMPO para identificar si es un directivo
   esDirectivo?: boolean;
-  idDirectivo?: number; // Solo para directivos, convierte el dni string a number
+  idDirectivo?: number; // Solo para directivos, convierte el ID string a number
 }
 
 /**
  * Obtiene los registros de asistencia del personal almacenados en Redis
  * para la fecha actual
- * 🆕 ACTUALIZADA para manejar directivos que usan Id_Directivo en lugar de DNI
+ * 🆕 ACTUALIZADA para manejar directivos que usan Id_Directivo en lugar de ID
  */
 export async function obtenerRegistrosAsistenciaPersonalRedis(): Promise<
   RegistroPersonalRedis[]
@@ -68,12 +69,12 @@ export async function obtenerRegistrosAsistenciaPersonalRedis(): Promise<
         }
 
         // Parsear la clave para extraer información
-        // Formato esperado: YYYY-MM-DD:ModoRegistro:Actor:DNI_o_ID
+        // Formato esperado: YYYY-MM-DD:ModoRegistro:Actor:ID_o_ID
         const partesClave = clave.split(":");
 
         if (partesClave.length < 4) {
           console.warn(
-            `⚠️  Formato de clave inválido: ${clave} (esperado: fecha:modo:actor:dni_o_id)`
+            `⚠️  Formato de clave inválido: ${clave} (esperado: fecha:modo:actor:ID_o_id)`
           );
           registrosInvalidos++;
           continue;
@@ -83,7 +84,7 @@ export async function obtenerRegistrosAsistenciaPersonalRedis(): Promise<
 
         // 🆕 LÓGICA ESPECIAL PARA DIRECTIVOS
         const esDirectivo = rol === RolesSistema.Directivo;
-        let dniParaRegistro = identificador;
+        let idParaRegistro = identificador;
         let idDirectivo: number | undefined;
 
         if (esDirectivo) {
@@ -99,15 +100,15 @@ export async function obtenerRegistrosAsistenciaPersonalRedis(): Promise<
           }
 
           idDirectivo = idDirectivoNum;
-          dniParaRegistro = identificador; // Mantenemos como string para compatibilidad
+          idParaRegistro = identificador; // Mantenemos como string para compatibilidad
           registrosDirectivos++;
 
           console.log(`🏢 Directivo encontrado: Id_Directivo = ${idDirectivo}`);
         } else {
-          // Para otros roles, validar que sea un DNI válido (8 dígitos)
-          if (!/^\d{8}$/.test(identificador)) {
+          // Para otros roles, validar que sea un ID válido (8 dígitos)
+          if (!EXPRESION_REGULAR_PARA_IDENTIFICADORES_SIASIS.test(identificador)) {
             console.warn(
-              `⚠️  DNI inválido en clave ${clave}: ${identificador}`
+              `⚠️  ID inválido en clave ${clave}: ${identificador}`
             );
             registrosInvalidos++;
             continue;
@@ -157,7 +158,7 @@ export async function obtenerRegistrosAsistenciaPersonalRedis(): Promise<
           fecha,
           modoRegistro,
           rol,
-          dni: dniParaRegistro, // Para directivos será Id_Directivo como string
+          id: idParaRegistro, // Para directivos será Id_Directivo como string
           timestamp,
           desfaseSegundos,
           claveRedis: clave,
@@ -199,7 +200,7 @@ export async function obtenerRegistrosAsistenciaPersonalRedis(): Promise<
       const ejemplosOtros = registros.filter((r) => !r.esDirectivo).slice(0, 2);
       ejemplosOtros.forEach((r) => {
         console.log(
-          `👥 ${r.rol}: DNI=${r.dni}, Modo=${
+          `👥 ${r.rol}: ID=${r.id}, Modo=${
             r.modoRegistro
           }, Timestamp=${new Date(r.timestamp).toLocaleString()}`
         );

@@ -4,9 +4,9 @@ import {
   crearFechaConHora,
   extraerHora,
 } from "../../../../utils/dates/modificacionFechas";
-import { verificarDentroSemanaGestion } from "../../../../utils/verificators/verificarDentroSemanaGestion";
-import { verificarDentroVacacionesInterescolares } from "../../../../utils/verificators/verificarDentroVacacionesInterescolares";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
+import { verificarDentroVacacionesInterescolares } from "../../../../utils/helpers/verificators/verificarDentroVacacionesInterescolares";
+import { verificarDentroSemanaGestion } from "../../../../utils/helpers/verificators/verificarDentroSemanaGestion";
 
 // Constantes para la extensión del rango total
 const EXTENSION_INICIO_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS = 1;

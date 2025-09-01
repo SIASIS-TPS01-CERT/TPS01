@@ -2,8 +2,8 @@ import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
 export async function verificarExistenciaRegistroDiario(
   tabla: string,
-  campoDNI: string,
-  dni: string,
+  campoID: string,
+  id: string,
   mes: number,
   dia: number,
   campoJson: "Entradas" | "Salidas"
@@ -12,10 +12,10 @@ export async function verificarExistenciaRegistroDiario(
     const sql = `
       SELECT "${campoJson}"
       FROM "${tabla}"
-      WHERE "${campoDNI}" = $1 AND "Mes" = $2
+      WHERE "${campoID}" = $1 AND "Mes" = $2
     `;
 
-    const result = await RDP02_DB_INSTANCES.query(sql, [dni, mes]);
+    const result = await RDP02_DB_INSTANCES.query(sql, [id, mes]);
 
     if (result.rowCount > 0) {
       // El resultado puede tener el valor campoJson en minúsculas o en mayúsculas

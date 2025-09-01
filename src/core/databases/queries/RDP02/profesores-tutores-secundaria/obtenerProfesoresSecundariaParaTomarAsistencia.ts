@@ -2,9 +2,9 @@ import { T_Vacaciones_Interescolares } from "@prisma/client";
 import { DURACION_HORA_ACADEMICA_EN_MINUTOS } from "../../../../../constants/DURACION_HORA_ACADEMICA_EN_MINUTOS";
 import { ProfesorTutorSecundariaParaTomaDeAsistencia } from "../../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
 import { extraerHora } from "../../../../utils/dates/modificacionFechas";
-import { verificarDentroSemanaGestion } from "../../../../utils/verificators/verificarDentroSemanaGestion";
-import { verificarDentroVacacionesInterescolares } from "../../../../utils/verificators/verificarDentroVacacionesInterescolares";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
+import { verificarDentroSemanaGestion } from "../../../../utils/helpers/verificators/verificarDentroSemanaGestion";
+import { verificarDentroVacacionesInterescolares } from "../../../../utils/helpers/verificators/verificarDentroVacacionesInterescolares";
 
 /**
  * Calcula el horario considerando los recreos
@@ -158,7 +158,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
     // independientemente de si estamos en período especial o no
     const profesoresQuery = `
       SELECT 
-        ps."DNI_Profesor_Secundaria", 
+        ps."Id_Profesor_Secundaria", 
         ps."Nombres", 
         ps."Apellidos", 
         ps."Genero", 
@@ -166,9 +166,9 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         MIN(ch."Indice_Hora_Academica_Inicio") as "Indice_Entrada",
         MAX(ch."Indice_Hora_Academica_Inicio" + ch."Cant_Hora_Academicas") as "Indice_Salida"
       FROM "T_Profesores_Secundaria" ps
-      JOIN "T_Cursos_Horario" ch ON ps."DNI_Profesor_Secundaria" = ch."DNI_Profesor_Secundaria"
+      JOIN "T_Cursos_Horario" ch ON ps."Id_Profesor_Secundaria" = ch."Id_Profesor_Secundaria"
       WHERE ps."Estado" = true AND ch."Dia_Semana" = $1
-      GROUP BY ps."DNI_Profesor_Secundaria", ps."Nombres", ps."Apellidos", ps."Genero", ps."Google_Drive_Foto_ID"
+      GROUP BY ps."Id_Profesor_Secundaria", ps."Nombres", ps."Apellidos", ps."Genero", ps."Google_Drive_Foto_ID"
     `;
 
     const profesoresResult = await RDP02_DB_INSTANCES.query(profesoresQuery, [
@@ -247,16 +247,21 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
       const horaEntradaISO = new Date(`${fechaString}T${horaInicioStr}.000Z`);
       const horaSalidaISO = new Date(`${fechaString}T${horaFinStr}.000Z`);
 
-      console.log(`Horarios especiales generados para período ${periodoTipo}:`, {
-        entrada: horaEntradaISO.toISOString(),
-        salida: horaSalidaISO.toISOString(),
-      });
+      console.log(
+        `Horarios especiales generados para período ${periodoTipo}:`,
+        {
+          entrada: horaEntradaISO.toISOString(),
+          salida: horaSalidaISO.toISOString(),
+        }
+      );
 
       // Asignar horarios especiales a los profesores con cursos este día
-      console.log(`Aplicando horarios especiales de ${periodoTipo} a los profesores con cursos este día`);
-      
+      console.log(
+        `Aplicando horarios especiales de ${periodoTipo} a los profesores con cursos este día`
+      );
+
       return profesoresResult.rows.map((profesor: any) => ({
-        DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
+        Id_Profesor_Secundaria: profesor.Id_Profesor_Secundaria,
         Nombres: profesor.Nombres,
         Apellidos: profesor.Apellidos,
         Genero: profesor.Genero,
@@ -322,7 +327,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
     return profesoresResult.rows.map((profesor: any) => {
       try {
         console.log(
-          `Procesando horarios para profesor ${profesor.DNI_Profesor_Secundaria}:`,
+          `Procesando horarios para profesor ${profesor.Id_Profesor_Secundaria}:`,
           {
             indiceEntrada: profesor.Indice_Entrada,
             indiceSalida: profesor.Indice_Salida,
@@ -360,7 +365,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         );
 
         console.log(
-          `Horarios normales calculados para ${profesor.DNI_Profesor_Secundaria}:`,
+          `Horarios normales calculados para ${profesor.Id_Profesor_Secundaria}:`,
           {
             entrada: horaEntrada.toISOString(),
             salida: horaSalida.toISOString(),
@@ -368,7 +373,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         );
 
         return {
-          DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
+          Id_Profesor_Secundaria: profesor.Id_Profesor_Secundaria,
           Nombres: profesor.Nombres,
           Apellidos: profesor.Apellidos,
           Genero: profesor.Genero,
@@ -378,7 +383,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         };
       } catch (error) {
         console.error(
-          `Error procesando horarios para ${profesor.DNI_Profesor_Secundaria}:`,
+          `Error procesando horarios para ${profesor.Id_Profesor_Secundaria}:`,
           error
         );
 
@@ -390,7 +395,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         horaFinDefault.setHours(18, 30, 0, 0); // 6:30 PM
 
         return {
-          DNI_Profesor_Secundaria: profesor.DNI_Profesor_Secundaria,
+          Id_Profesor_Secundaria: profesor.Id_Profesor_Secundaria,
           Nombres: profesor.Nombres,
           Apellidos: profesor.Apellidos,
           Genero: profesor.Genero,

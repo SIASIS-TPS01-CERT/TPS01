@@ -5,7 +5,7 @@ import { ActoresSistema } from "./ActoresSistema";
 
 export interface RegistroAsistenciaUnitariaPersonal {
   ModoRegistro: ModoRegistro;
-  DNI: string;
+  Id_Usuario: string;
   Rol: RolesSistema | ActoresSistema;
   Dia: number;
   Detalles: DetallesAsistenciaUnitariaPersonal | null;
@@ -14,7 +14,7 @@ export interface RegistroAsistenciaUnitariaPersonal {
 
 export type RegistroAsistenciaMensualPersonal = Pick<
   RegistroAsistenciaUnitariaPersonal,
-  "DNI" | "Rol" | "ModoRegistro"
+  "Id_Usuario" | "Rol" | "ModoRegistro"
 > & {
   Mes: Meses;
   RegistrosDelMes: Record<number, DetallesAsistenciaUnitariaPersonal | null>;
@@ -26,7 +26,7 @@ export interface DetallesAsistenciaUnitariaPersonal {
 }
 
 export interface AsistenciaDiariaResultado {
-  DNI: string;
+  Id_Usuario: string;
   AsistenciaMarcada: boolean;
   Detalles: DetallesAsistenciaUnitariaPersonal | null;
 }

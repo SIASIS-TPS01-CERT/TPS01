@@ -2,12 +2,12 @@ import { RolesSistema } from "../../../../../interfaces/shared/RolesSistema";
 import RDP02_DB_INSTANCES from '../../../connectors/postgres';
 
 interface PersonalInactivo {
-  dni: string;
+  id: string;
   rol: RolesSistema;
   tablaMensualEntrada: string;
   tablaMensualSalida: string;
   campoId: string;
-  campoDNI: string;
+  campoIdUsuario: string;
 }
 
 export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
@@ -28,7 +28,7 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
   if (tablasExistentes.includes("T_Auxiliares")) {
     try {
       const sqlAuxiliares = `
-        SELECT "DNI_Auxiliar" as dni
+        SELECT "Id_Auxiliar"
         FROM "T_Auxiliares"
         WHERE "Estado" = false
       `;
@@ -36,12 +36,12 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
       const auxiliaresInactivos = await RDP02_DB_INSTANCES.query(sqlAuxiliares);
       auxiliaresInactivos.rows.forEach((row: any) => {
         personalInactivo.push({
-          dni: row.dni,
+          id: row.Id_Auxiliar,
           rol: RolesSistema.Auxiliar,
           tablaMensualEntrada: "t_Control_Entrada_Mensual_Auxiliar",
           tablaMensualSalida: "t_Control_Salida_Mensual_Auxiliar",
           campoId: "Id_C_E_M_P_Auxiliar",
-          campoDNI: "DNI_Auxiliar",
+          campoIdUsuario: "Id_Auxiliar",
         });
       });
     } catch (error) {
@@ -53,7 +53,7 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
   if (tablasExistentes.includes("T_Profesores_Primaria")) {
     try {
       const sqlProfesoresPrimaria = `
-        SELECT "DNI_Profesor_Primaria" as dni
+        SELECT "Id_Profesor_Primaria"
         FROM "T_Profesores_Primaria"
         WHERE "Estado" = false
       `;
@@ -61,12 +61,12 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
       const profesoresPrimariaInactivos = await RDP02_DB_INSTANCES.query(sqlProfesoresPrimaria);
       profesoresPrimariaInactivos.rows.forEach((row: any) => {
         personalInactivo.push({
-          dni: row.dni,
+          id: row.Id_Profesor_Primaria,
           rol: RolesSistema.ProfesorPrimaria,
           tablaMensualEntrada: "t_Control_Entrada_Mensual_Profesores_Primaria",
           tablaMensualSalida: "t_Control_Salida_Mensual_Profesores_Primaria",
           campoId: "Id_C_E_M_P_Profesores_Primaria",
-          campoDNI: "DNI_Profesor_Primaria",
+          campoIdUsuario: "Id_Profesor_Primaria",
         });
       });
     } catch (error) {
@@ -78,7 +78,7 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
   if (tablasExistentes.includes("T_Profesores_Secundaria")) {
     try {
       const sqlProfesoresSecundaria = `
-        SELECT "DNI_Profesor_Secundaria" as dni
+        SELECT "Id_Profesor_Secundaria"
         FROM "T_Profesores_Secundaria"
         WHERE "Estado" = false
       `;
@@ -88,13 +88,13 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
       );
       profesoresSecundariaInactivos.rows.forEach((row: any) => {
         personalInactivo.push({
-          dni: row.dni,
+          id: row.Id_Profesor_Secundaria,
           rol: RolesSistema.ProfesorSecundaria,
           tablaMensualEntrada:
             "t_Control_Entrada_Mensual_Profesores_Secundaria",
           tablaMensualSalida: "t_Control_Salida_Mensual_Profesores_Secundaria",
           campoId: "Id_C_E_M_P_Profesores_Secundaria",
-          campoDNI: "DNI_Profesor_Secundaria",
+          campoIdUsuario: "Id_Profesor_Secundaria",
         });
       });
     } catch (error) {
@@ -109,7 +109,7 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
   if (tablasExistentes.includes("T_Personal_Administrativo")) {
     try {
       const sqlPersonalAdministrativo = `
-        SELECT "DNI_Personal_Administrativo" as dni
+        SELECT "Id_Personal_Administrativo"
         FROM "T_Personal_Administrativo"
         WHERE "Estado" = false
       `;
@@ -119,14 +119,14 @@ export async function obtenerPersonalInactivoParaRegistroAutomatico(): Promise<
       );
       personalAdministrativoInactivo.rows.forEach((row: any) => {
         personalInactivo.push({
-          dni: row.dni,
+          id: row.Id_Personal_Administrativo,
           rol: RolesSistema.PersonalAdministrativo,
           tablaMensualEntrada:
             "t_Control_Entrada_Mensual_Personal_Administrativo",
           tablaMensualSalida:
             "t_Control_Salida_Mensual_Personal_Administrativo",
           campoId: "Id_C_E_M_P_Administrativo",
-          campoDNI: "DNI_Personal_Administrativo",
+          campoIdUsuario: "Id_Personal_Administrativo",
         });
       });
     } catch (error) {

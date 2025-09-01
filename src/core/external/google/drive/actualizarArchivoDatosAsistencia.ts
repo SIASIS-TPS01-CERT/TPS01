@@ -1,9 +1,6 @@
 import { redisClient } from "../../../../config/Redis/RedisClient";
-import { NOMBRE_ARCHIVO_CON_DATOS_ASISTENCIA_DIARIOS } from "../../../../constants/NOMBRE_ARCHIVOS_SISTEMA";
-import {
-  buscarArchivoDatosAsistenciaDiariosEnBD,
-  upsertArchivoDatosAsistenciaDiariosEnBD,
-} from "../../../databases/queries/RDP02/asistencia-diaria/operacionesAsistenciaDiaria";
+import { buscarArchivoRespaldoPorNombre } from "../../../databases/queries/RDP02/archivos-respaldo/buscarArchivoRespaldoPorNombre";
+import { upsertArchivoDatosAsistenciaDiariosEnBD } from "../../../databases/queries/RDP02/asistencia-diaria/operacionesAsistenciaDiaria";
 import { deleteFileFromDrive } from "./deleteFileFromDrive";
 import { uploadJsonToDrive } from "./uploadJsonToDrive";
 
@@ -18,7 +15,8 @@ import { uploadJsonToDrive } from "./uploadJsonToDrive";
  * @param folderPath Ruta de carpetas en Google Drive donde se almacenará el archivo
  * @returns Información del nuevo archivo creado
  */
-export async function actualizarArchivoDatosAsistenciaDiariosRespaldoEnGoogleDrive(
+export async function actualizarArchivoRespaldoEnGoogleDrive(
+  nombreArchivo: string,
   jsonData: any,
   folderPath: string = "Archivos de Respaldo"
 ) {
@@ -28,7 +26,9 @@ export async function actualizarArchivoDatosAsistenciaDiariosRespaldoEnGoogleDri
     );
 
     // 1. Buscar si existe un archivo previo
-    const archivoExistente = await buscarArchivoDatosAsistenciaDiariosEnBD();
+    const archivoExistente = await buscarArchivoRespaldoPorNombre(
+      nombreArchivo
+    );
     console.log("Archivo existente en BD:", archivoExistente ? "SÍ" : "NO");
 
     // 2. Eliminar el archivo anterior de Google Drive (si existe)
@@ -44,19 +44,17 @@ export async function actualizarArchivoDatosAsistenciaDiariosRespaldoEnGoogleDri
     const nuevoArchivo = await uploadJsonToDrive(
       jsonData,
       folderPath,
-      NOMBRE_ARCHIVO_CON_DATOS_ASISTENCIA_DIARIOS
+      nombreArchivo
     );
 
     // 4. Guardar archivo en todas las
-    await redisClient().set(
-      NOMBRE_ARCHIVO_CON_DATOS_ASISTENCIA_DIARIOS,
-      nuevoArchivo.id
-    );
+    await redisClient().set(nombreArchivo, nuevoArchivo.id);
 
     // 5. Actualizar los registros en la base de datos
     console.log(`Archivo subido con éxito. Nuevo ID: ${nuevoArchivo.id}`);
     const registroBD = await upsertArchivoDatosAsistenciaDiariosEnBD(
-      nuevoArchivo.id
+      nuevoArchivo.id,
+      nombreArchivo
     );
 
     console.log("Registro en BD actualizado:", registroBD);

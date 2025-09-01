@@ -7,7 +7,7 @@ import { RegistroPersonalRedis } from "../../RDP05/obtenerRegistrosAsistenciaPer
 // Interfaz para la configuración de tabla
 interface ConfiguracionTabla {
   tabla: string;
-  campoDNI: string;
+  campoID: string;
   campoJSON: "Entradas" | "Salidas";
   esDirectivo?: boolean; // 🆕 NUEVO CAMPO para identificar directivos
 }
@@ -42,7 +42,7 @@ function obtenerConfiguracionTabla(
         tabla: esEntrada
           ? "T_Control_Entrada_Mensual_Directivos"
           : "T_Control_Salida_Mensual_Directivos",
-        campoDNI: "Id_Directivo", // Directivos usan Id_Directivo
+        campoID: "Id_Directivo", // Directivos usan Id_Directivo
         campoJSON: esEntrada ? "Entradas" : "Salidas",
         esDirectivo: true, // 🆕 Marcador especial
       };
@@ -52,7 +52,7 @@ function obtenerConfiguracionTabla(
         tabla: esEntrada
           ? "T_Control_Entrada_Mensual_Profesores_Primaria"
           : "T_Control_Salida_Mensual_Profesores_Primaria",
-        campoDNI: "DNI_Profesor_Primaria",
+        campoID: "Id_Profesor_Primaria",
         campoJSON: esEntrada ? "Entradas" : "Salidas",
       };
 
@@ -62,7 +62,7 @@ function obtenerConfiguracionTabla(
         tabla: esEntrada
           ? "T_Control_Entrada_Mensual_Profesores_Secundaria"
           : "T_Control_Salida_Mensual_Profesores_Secundaria",
-        campoDNI: "DNI_Profesor_Secundaria",
+        campoID: "Id_Profesor_Secundaria",
         campoJSON: esEntrada ? "Entradas" : "Salidas",
       };
 
@@ -71,7 +71,7 @@ function obtenerConfiguracionTabla(
         tabla: esEntrada
           ? "T_Control_Entrada_Mensual_Auxiliar"
           : "T_Control_Salida_Mensual_Auxiliar",
-        campoDNI: "DNI_Auxiliar",
+        campoID: "Id_Auxiliar",
         campoJSON: esEntrada ? "Entradas" : "Salidas",
       };
 
@@ -80,7 +80,7 @@ function obtenerConfiguracionTabla(
         tabla: esEntrada
           ? "T_Control_Entrada_Mensual_Personal_Administrativo"
           : "T_Control_Salida_Mensual_Personal_Administrativo",
-        campoDNI: "DNI_Personal_Administrativo",
+        campoID: "Id_Personal_Administrativo",
         campoJSON: esEntrada ? "Entradas" : "Salidas",
       };
 
@@ -96,8 +96,8 @@ function obtenerConfiguracionTabla(
  */
 async function registrarAsistenciaConValoresPersonalizados(
   tabla: string,
-  campoDNI: string,
-  identificador: string | number, // 🆕 Puede ser DNI (string) o Id_Directivo (number)
+  campoID: string,
+  identificador: string | number, // 🆕 Puede ser ID (string) o Id_Directivo (number)
   mes: number,
   dia: number,
   campoJson: "Entradas" | "Salidas",
@@ -110,7 +110,7 @@ async function registrarAsistenciaConValoresPersonalizados(
     const sqlVerificar = `
       SELECT *
       FROM "${tabla}"
-      WHERE "${campoDNI}" = $1 AND "Mes" = $2
+      WHERE "${campoID}" = $1 AND "Mes" = $2
     `;
     const resultVerificar = await RDP02_DB_INSTANCES.query(
       sqlVerificar,
@@ -166,13 +166,13 @@ async function registrarAsistenciaConValoresPersonalizados(
           registro[idKey],
         ]);
 
-        const tipoIdentificador = esDirectivo ? "Id_Directivo" : "DNI";
+        const tipoIdentificador = esDirectivo ? "Id_Directivo" : "Identificador_Nacional";
         return {
           exito: true,
           mensaje: `Registro actualizado para ${tipoIdentificador} ${identificador} en día ${dia}`,
         };
       } else {
-        const tipoIdentificador = esDirectivo ? "Id_Directivo" : "DNI";
+        const tipoIdentificador = esDirectivo ? "Id_Directivo" : "Identificador_Nacional";
         return {
           exito: false,
           mensaje: `Registro ya existe para ${tipoIdentificador} ${identificador} en día ${dia}, manteniendo el existente`,
@@ -185,7 +185,7 @@ async function registrarAsistenciaConValoresPersonalizados(
 
       // Insertar nuevo registro
       const sqlInsertar = `
-        INSERT INTO "${tabla}" ("${campoDNI}", "Mes", "${campoJson}")
+        INSERT INTO "${tabla}" ("${campoID}", "Mes", "${campoJson}")
         VALUES ($1, $2, $3)
       `;
       await RDP02_DB_INSTANCES.query(sqlInsertar, [
@@ -194,7 +194,7 @@ async function registrarAsistenciaConValoresPersonalizados(
         JSON.stringify(nuevoJson),
       ]);
 
-      const tipoIdentificador = esDirectivo ? "Id_Directivo" : "DNI";
+      const tipoIdentificador = esDirectivo ? "Id_Directivo" : "Identificador_Nacional";
       return {
         exito: true,
         mensaje: `Nuevo registro creado para ${tipoIdentificador} ${identificador} en mes ${mes}`,
@@ -264,13 +264,13 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
     console.log(`🏢 Registros de directivos: ${registrosDirectivos.length}`);
     console.log(`👥 Registros de otros roles: ${registrosOtrosRoles.length}`);
 
-    // Agrupar registros no-directivos por DNI y modo para optimizar
+    // Agrupar registros no-directivos por ID y modo para optimizar
     const registrosAgrupadosNormales = new Map<
       string,
       RegistroPersonalRedis[]
     >();
     for (const registro of registrosOtrosRoles) {
-      const clave = `${registro.dni}-${registro.modoRegistro}`;
+      const clave = `${registro.id}-${registro.modoRegistro}`;
       if (!registrosAgrupadosNormales.has(clave)) {
         registrosAgrupadosNormales.set(clave, []);
       }
@@ -283,7 +283,7 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
       RegistroPersonalRedis[]
     >();
     for (const registro of registrosDirectivos) {
-      const clave = `${registro.dni}-${registro.modoRegistro}`; // dni contiene Id_Directivo como string
+      const clave = `${registro.id}-${registro.modoRegistro}`; // ID contiene Id_Directivo como string
       if (!registrosAgrupadosDirectivos.has(clave)) {
         registrosAgrupadosDirectivos.set(clave, []);
       }
@@ -300,13 +300,13 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
         current.timestamp > max.timestamp ? current : max
       );
 
-      const { modoRegistro, rol, dni, timestamp, desfaseSegundos } =
+      const { modoRegistro, rol, id, timestamp, desfaseSegundos } =
         registroMasReciente;
 
       try {
         // Validar datos del registro
-        if (!dni || !rol || !modoRegistro) {
-          const error = `Datos faltantes en registro: DNI=${dni}, Rol=${rol}, Modo=${modoRegistro}`;
+        if (!id || !rol || !modoRegistro) {
+          const error = `Datos faltantes en registro: ID=${id}, Rol=${rol}, Modo=${modoRegistro}`;
           console.warn(`⚠️  ${error}`);
           errores.push(error);
           registrosIgnorados++;
@@ -323,13 +323,13 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
           continue;
         }
 
-        const { tabla, campoDNI, campoJSON } = config;
+        const { tabla, campoID, campoJSON } = config;
 
         // Registrar con valores personalizados
         const resultado = await registrarAsistenciaConValoresPersonalizados(
           tabla,
-          campoDNI,
-          dni, // Para roles normales, usar DNI directamente
+          campoID,
+          id, // Para roles normales, usar ID directamente
           mesActual,
           diaActual,
           campoJSON,
@@ -355,11 +355,11 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
 
         if (grupoRegistros.length > 1) {
           console.log(
-            `🔄 Se procesaron ${grupoRegistros.length} registros duplicados para ${dni}-${modoRegistro}, se tomó el más reciente`
+            `🔄 Se procesaron ${grupoRegistros.length} registros duplicados para ${id}-${modoRegistro}, se tomó el más reciente`
           );
         }
       } catch (error) {
-        const mensajeError = `Error al procesar registro para DNI ${dni}: ${
+        const mensajeError = `Error al procesar registro para ID ${id}: ${
           error instanceof Error ? error.message : String(error)
         }`;
         console.error(`❌ ${mensajeError}`);
@@ -377,7 +377,7 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
       const {
         modoRegistro,
         rol,
-        dni,
+        id,
         timestamp,
         desfaseSegundos,
         idDirectivo,
@@ -385,12 +385,12 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
 
       try {
         console.log(
-          `🏢 Procesando directivo con Id_Directivo: ${idDirectivo} (valor dni: ${dni})`
+          `🏢 Procesando directivo con Id_Directivo: ${idDirectivo} (valor id: ${id})`
         );
 
         // Validar que tenemos el Id_Directivo
         if (!idDirectivo) {
-          const error = `Id_Directivo faltante para registro: ${dni}`;
+          const error = `Id_Directivo faltante para registro: ${id}`;
           console.error(`❌ ${error}`);
           errores.push(error);
           registrosIgnorados++;
@@ -407,12 +407,12 @@ export async function registrarAsistenciasUnitariasDePersonalDesdeRedis(
           continue;
         }
 
-        const { tabla, campoDNI, campoJSON } = config;
+        const { tabla, campoID, campoJSON } = config;
 
         // Registrar usando Id_Directivo directamente (sin conversión)
         const resultado = await registrarAsistenciaConValoresPersonalizados(
           tabla,
-          campoDNI,
+          campoID,
           idDirectivo, // 🆕 Usar Id_Directivo directamente
           mesActual,
           diaActual,

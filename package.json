@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "description": "Tareas Programadas SIASIS - Parte 1",
   "scripts": {
+    "build": "tsc --project tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "SetDatosAsistenciaDiaria": "ts-node ./src/jobs/asistencia/SetDatosAsistenciaDiaria.ts",
-    "SetAsistenciasYFaltasDePersonal": "ts-node ./src/jobs/asistencia/SetAsistenciasYFaltasDePersonal.ts"
+    "SetDatosAsistenciaDiaria": "ts-node ./src/jobs/asistenciaDePersonal/SetDatosAsistenciaDiaria.ts",
+    "SetAsistenciasYFaltasDePersonal": "ts-node ./src/jobs/asistenciaDePersonal/SetAsistenciasYFaltasDePersonal.ts",
+    "SetListasEstudiantes": "ts-node ./src/jobs/asistenciaEscolar/SetListasDeEstudiantes.ts",
+    "SetAsistenciasYFaltasEstudiantesSecundaria": "ts-node ./src/jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria.ts",
+    "postinstall": "npx prisma generate"
   },
   "author": "SIASIS",
   "license": "MIT",
@@ -16,11 +20,15 @@
     "dotenv": "^16.4.7",
     "google-auth-library": "^9.15.1",
     "googleapis": "^148.0.0",
+    "mongodb": "^6.18.0",
     "pg": "^8.14.1",
     "prisma": "^6.5.0"
   },
   "devDependencies": {
-    "@types/dotenv": "^6.1.1",
-    "@types/pg": "^8.11.11"
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "@types/node": "^20.0.0",
+    "pg": "^8.11.0",
+    "@types/pg": "^8.10.0"
   }
 }

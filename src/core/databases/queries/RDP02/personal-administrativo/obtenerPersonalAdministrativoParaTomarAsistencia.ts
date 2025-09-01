@@ -1,9 +1,9 @@
 import { T_Vacaciones_Interescolares } from "@prisma/client";
 import { PersonalAdministrativoParaTomaDeAsistencia } from "../../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
 import { extraerHora } from "../../../../utils/dates/modificacionFechas";
-import { verificarDentroSemanaGestion } from "../../../../utils/verificators/verificarDentroSemanaGestion";
-import { verificarDentroVacacionesInterescolares } from "../../../../utils/verificators/verificarDentroVacacionesInterescolares";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
+import { verificarDentroSemanaGestion } from "../../../../utils/helpers/verificators/verificarDentroSemanaGestion";
+import { verificarDentroVacacionesInterescolares } from "../../../../utils/helpers/verificators/verificarDentroVacacionesInterescolares";
 
 export async function obtenerPersonalAdministrativoParaTomarAsistencia(
   fechaActual: Date,
@@ -95,7 +95,7 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
     // 🔄 NUEVA CONSULTA: JOIN con tabla de horarios por días
     const sql = `
       SELECT 
-        pa."DNI_Personal_Administrativo", 
+        pa."Id_Personal_Administrativo", 
         pa."Genero", 
         pa."Nombres", 
         pa."Apellidos", 
@@ -105,7 +105,7 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
         h."Hora_Fin" as "Horario_Laboral_Salida"
       FROM "T_Personal_Administrativo" pa
       LEFT JOIN "T_Horarios_Por_Dias_Personal_Administrativo" h 
-        ON pa."DNI_Personal_Administrativo" = h."DNI_Personal_Administrativo" 
+        ON pa."Id_Personal_Administrativo" = h."Id_Personal_Administrativo" 
         AND h."Dia" = $1
       WHERE pa."Estado" = true
         AND h."Dia" IS NOT NULL  -- Solo incluir personal que tenga horario para este día
@@ -121,11 +121,11 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
       "Datos brutos de horarios laborales:",
       result.rows.map(
         (r: {
-          DNI_Personal_Administrativo: any;
+          Id_Personal_Administrativo: any;
           Horario_Laboral_Entrada: any;
           Horario_Laboral_Salida: any;
         }) => ({
-          dni: r.DNI_Personal_Administrativo,
+          id: r.Id_Personal_Administrativo,
           entrada: r.Horario_Laboral_Entrada,
           salida: r.Horario_Laboral_Salida,
         })
@@ -150,14 +150,14 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
           horaEntrada = horaInicioEspecial;
           horaSalida = horaFinEspecial;
           console.log(
-            `Usando horarios especiales para ${row.DNI_Personal_Administrativo}: ${horaEntrada}, ${horaSalida}`
+            `Usando horarios especiales para ${row.Id_Personal_Administrativo}: ${horaEntrada}, ${horaSalida}`
           );
         } else {
           // Extraer horas normales desde la nueva tabla
           horaEntrada = extraerHora(row.Horario_Laboral_Entrada) || "08:00:00";
           horaSalida = extraerHora(row.Horario_Laboral_Salida) || "16:00:00";
           console.log(
-            `Horas normales extraídas para ${row.DNI_Personal_Administrativo}: ${horaEntrada}, ${horaSalida}`
+            `Horas normales extraídas para ${row.Id_Personal_Administrativo}: ${horaEntrada}, ${horaSalida}`
           );
         }
 
@@ -169,13 +169,13 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
         const horaEntradaISO = new Date(`${fecha}T${horaEntrada}.000Z`);
         const horaSalidaISO = new Date(`${fecha}T${horaSalida}.000Z`);
 
-        console.log(`Fechas ISO para ${row.DNI_Personal_Administrativo}:`, {
+        console.log(`Fechas ISO para ${row.Id_Personal_Administrativo}:`, {
           entrada: horaEntradaISO.toISOString(),
           salida: horaSalidaISO.toISOString(),
         });
 
         return {
-          DNI_Personal_Administrativo: row.DNI_Personal_Administrativo,
+          Id_Personal_Administrativo: row.Id_Personal_Administrativo,
           Genero: row.Genero,
           Nombres: row.Nombres,
           Apellidos: row.Apellidos,
@@ -186,7 +186,7 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
         };
       } catch (error) {
         console.error(
-          `Error procesando ${row.DNI_Personal_Administrativo}:`,
+          `Error procesando ${row.Id_Personal_Administrativo}:`,
           error
         );
 
@@ -196,7 +196,7 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
         const salidaPredeterminada = new Date(`${fecha}T16:00:00.000Z`);
 
         return {
-          DNI_Personal_Administrativo: row.DNI_Personal_Administrativo,
+          Id_Personal_Administrativo: row.Id_Personal_Administrativo,
           Genero: row.Genero,
           Nombres: row.Nombres,
           Apellidos: row.Apellidos,

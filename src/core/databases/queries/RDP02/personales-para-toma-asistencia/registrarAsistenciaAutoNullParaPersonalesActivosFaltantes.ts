@@ -2,8 +2,8 @@ import RDP02_DB_INSTANCES from '../../../connectors/postgres';
 
 export async function registrarAsistenciaConValoresNull(
   tabla: string,
-  campoDNI: string,
-  dni: string,
+  campoID: string,
+  id: string,
   mes: number,
   dia: number,
   campoJson: "Entradas" | "Salidas"
@@ -13,10 +13,10 @@ export async function registrarAsistenciaConValoresNull(
     const sqlVerificar = `
         SELECT *
         FROM "${tabla}"
-        WHERE "${campoDNI}" = $1 AND "Mes" = $2
+        WHERE "${campoID}" = $1 AND "Mes" = $2
       `;
 
-    const resultVerificar = await RDP02_DB_INSTANCES.query(sqlVerificar, [dni, mes]);
+    const resultVerificar = await RDP02_DB_INSTANCES.query(sqlVerificar, [id, mes]);
 
     // Objeto con valores nulos
     const entradaNula = {
@@ -72,11 +72,11 @@ export async function registrarAsistenciaConValoresNull(
       nuevoJson[dia.toString()] = entradaNula;
 
       const sqlInsertar = `
-          INSERT INTO "${tabla}" ("${campoDNI}", "Mes", "${campoJson}")
+          INSERT INTO "${tabla}" ("${campoID}", "Mes", "${campoJson}")
           VALUES ($1, $2, $3)
         `;
 
-      await RDP02_DB_INSTANCES.query(sqlInsertar, [dni, mes, nuevoJson]);
+      await RDP02_DB_INSTANCES.query(sqlInsertar, [id, mes, nuevoJson]);
     }
   } catch (error) {
     console.error(

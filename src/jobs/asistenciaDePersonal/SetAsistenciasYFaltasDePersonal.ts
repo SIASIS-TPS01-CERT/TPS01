@@ -1,17 +1,18 @@
 import { closePool } from "../../core/databases/connectors/postgres";
 import {
   obtenerPersonalActivoDesdeJSON,
-  obtenerUltimoArchivoAsistencia,
+  obtenerUltimoArchivoDatosAsistenciaHoy,
 } from "../../core/databases/queries/RDP02/archivos-respaldo/obtenerDatosArchivoAsistenciaDiarios";
 import { registrarAsistenciasUnitariasDePersonalDesdeRedis } from "../../core/databases/queries/RDP02/asistencias-diarias-unitarias/registrarAsistenciasUnitariasDePersonalDesdeRedis";
 import { bloquearRoles } from "../../core/databases/queries/RDP02/bloqueo-roles/bloquearRoles";
 import { desbloquearRoles } from "../../core/databases/queries/RDP02/bloqueo-roles/desbloquearRoles";
 import { verificarYRegistrarAsistenciasIncompletas } from "../../core/databases/queries/RDP02/personales-para-toma-asistencia/verificarYRegistrarAsistenciasIncompletas";
 import { obtenerRegistrosAsistenciaPersonalRedis } from "../../core/databases/queries/RDP05/obtenerRegistrosAsistenciaPersonalRedis";
-import { descargarArchivoDatosAsistenciaDesdeGoogleDrive } from "../../core/external/google/drive/descargarArchivoDatosAsistencia";
+import { descargarArchivoJSONDesdeGoogleDrive } from "../../core/external/google/drive/descargarArchivoJSONDesdeGoogle";
 import { obtenerFechasActuales } from "../../core/utils/dates/obtenerFechasActuales";
 import { RolesSistema } from "../../interfaces/shared/RolesSistema";
 import { verificarDiaEvento } from "../../core/databases/queries/RDP02/eventos/verificarDiaEvento";
+import { DatosAsistenciaHoyIE20935 } from "../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
 
 // ========================================================
 // FUNCIÓN PRINCIPAL
@@ -19,7 +20,11 @@ import { verificarDiaEvento } from "../../core/databases/queries/RDP02/eventos/v
 
 async function main() {
   try {
-    console.log("🚀 Iniciando verificación de asistencias incompletas y procesamiento de registros Redis...");
+
+
+    console.log(
+      "🚀 Iniciando verificación de asistencias incompletas y procesamiento de registros Redis..."
+    );
 
     // Definir todos los roles que vamos a bloquear
     const todosLosRoles = [
@@ -46,51 +51,74 @@ async function main() {
     try {
       // Obtener fecha actual en Perú
       const { fechaLocalPeru } = obtenerFechasActuales();
-      console.log(`📅 Procesando asistencias para la fecha: ${fechaLocalPeru.toISOString().split('T')[0]}`);
+      console.log(
+        `📅 Procesando asistencias para la fecha: ${
+          fechaLocalPeru.toISOString().split("T")[0]
+        }`
+      );
 
       // 🎯 NUEVA VERIFICACIÓN: Verificar si es día de evento
       const esDiaEvento = await verificarDiaEvento(fechaLocalPeru);
-      console.log(`🎉 ¿Es día de evento?: ${esDiaEvento ? 'SÍ' : 'NO'}`);
+      console.log(`🎉 ¿Es día de evento?: ${esDiaEvento ? "SÍ" : "NO"}`);
 
       // ========================================================
       // FASE 1: Procesamiento de registros Redis
       // ========================================================
-      console.log("\n🔄 === FASE 1: Procesamiento de registros Redis de personal ===");
-      
+      console.log(
+        "\n🔄 === FASE 1: Procesamiento de registros Redis de personal ==="
+      );
+
       // 1.1 Obtener registros de personal desde Redis
-      const registrosPersonalRedis = await obtenerRegistrosAsistenciaPersonalRedis();
-      
+      const registrosPersonalRedis =
+        await obtenerRegistrosAsistenciaPersonalRedis();
+
       // 1.2 Persistir registros en la base de datos
       if (registrosPersonalRedis.length > 0) {
-        console.log(`🔄 Procesando ${registrosPersonalRedis.length} registros de asistencia de personal...`);
-        
-        await registrarAsistenciasUnitariasDePersonalDesdeRedis(registrosPersonalRedis);
-        
+        console.log(
+          `🔄 Procesando ${registrosPersonalRedis.length} registros de asistencia de personal...`
+        );
+
+        await registrarAsistenciasUnitariasDePersonalDesdeRedis(
+          registrosPersonalRedis
+        );
+
         console.log("✅ Registros de Redis procesados correctamente.");
-        console.log("⏰ Los registros en Redis expirarán automáticamente según su configuración.");
+        console.log(
+          "⏰ Los registros en Redis expirarán automáticamente según su configuración."
+        );
       } else {
-        console.log("ℹ️  No se encontraron registros de personal en Redis para procesar");
+        console.log(
+          "ℹ️  No se encontraron registros de personal en Redis para procesar"
+        );
       }
-      
+
       // ========================================================
       // FASE 2: Verificación de asistencias incompletas
       // ========================================================
       if (esDiaEvento) {
         console.log("\n🎉 === OMITIENDO FASE 2: Es día de evento ===");
-        console.log("🚫 No se registrarán faltas porque es un día de evento (feriado, celebración, etc.)");
-        console.log("📝 En días de evento no hay clases, por lo que no se considera falta del personal");
+        console.log(
+          "🚫 No se registrarán faltas porque es un día de evento (feriado, celebración, etc.)"
+        );
+        console.log(
+          "📝 En días de evento no hay clases, por lo que no se considera falta del personal"
+        );
       } else {
-        console.log("\n📋 === FASE 2: Verificación de asistencias incompletas ===");
-        
+        console.log(
+          "\n📋 === FASE 2: Verificación de asistencias incompletas ==="
+        );
+
         // 2.1. Obtener el ID del último archivo de asistencia
-        const googleDriveId = await obtenerUltimoArchivoAsistencia();
+        const googleDriveId = await obtenerUltimoArchivoDatosAsistenciaHoy();
         console.log(
           `🗂️  ID del último archivo de asistencia encontrado: ${googleDriveId}`
         );
 
         // 2.2. Descargar el archivo de asistencia
         const datosAsistencia =
-          await descargarArchivoDatosAsistenciaDesdeGoogleDrive(googleDriveId);
+          await descargarArchivoJSONDesdeGoogleDrive<DatosAsistenciaHoyIE20935>(
+            googleDriveId
+          );
         console.log("📥 Datos de asistencia descargados correctamente");
 
         // 2.3. Extraer lista de personal activo del archivo
@@ -106,8 +134,12 @@ async function main() {
         );
 
         // 2.5. Mostrar resultados
-        console.log("\n📊 === Resultados de registro de asistencias incompletas ===");
-        console.log(`👥 Total personal activo procesado: ${personalActivo.length}`);
+        console.log(
+          "\n📊 === Resultados de registro de asistencias incompletas ==="
+        );
+        console.log(
+          `👥 Total personal activo procesado: ${personalActivo.length}`
+        );
         console.log(
           `📥 Registros de entrada creados: ${resultado.registrosEntradaCreados}`
         );
@@ -118,11 +150,13 @@ async function main() {
         // Detallar personal sin registro de entrada
         console.log("\n📥 Personal sin registro de entrada:");
         if (resultado.personalSinRegistroEntrada.length === 0) {
-          console.log("✅ Ninguno (o no se pudieron procesar por falta de tablas)");
+          console.log(
+            "✅ Ninguno (o no se pudieron procesar por falta de tablas)"
+          );
         } else {
           resultado.personalSinRegistroEntrada.forEach((persona) => {
             console.log(
-              `❌ ${persona.nombreCompleto} (${persona.id_o_dni}) - ${persona.rol}`
+              `❌ ${persona.nombreCompleto} (${persona.idUsuario}) - ${persona.rol}`
             );
           });
         }
@@ -130,11 +164,13 @@ async function main() {
         // Detallar personal sin registro de salida
         console.log("\n📤 Personal sin registro de salida:");
         if (resultado.personalSinRegistroSalida.length === 0) {
-          console.log("✅ Ninguno (o no se pudieron procesar por falta de tablas)");
+          console.log(
+            "✅ Ninguno (o no se pudieron procesar por falta de tablas)"
+          );
         } else {
           resultado.personalSinRegistroSalida.forEach((persona) => {
             console.log(
-              `❌ ${persona.nombreCompleto} (${persona.id_o_dni}) - ${persona.rol}`
+              `❌ ${persona.nombreCompleto} (${persona.idUsuario}) - ${persona.rol}`
             );
           });
         }

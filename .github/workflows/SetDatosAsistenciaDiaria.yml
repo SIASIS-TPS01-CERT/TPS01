@@ -21,24 +21,21 @@ jobs:
 
     steps:
       - name: Checkout del repositorio
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18"
           cache: "npm"
 
       - name: Instalar dependencias
-        run: npm ci
-
-      - name: Instalar ts-node y pg
-        run: npm install -g ts-node typescript && npm install pg
+        run: npm install
 
       - name: Ejecutar script con ts-node
         run: |
           echo "Ejecutando script..."
-          ts-node ./src/jobs/asistencia/SetDatosAsistenciaDiaria.ts
+          npx ts-node ./src/jobs/asistenciaDePersonal/SetDatosAsistenciaDiaria.ts
         env:
           RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
@@ -58,6 +55,6 @@ jobs:
           RDP05_INS2_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS2_REDIS_BD_TOKEN_FOR_API }}
           RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
           RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
-          SE01_SIASIS_EMAIL_USER : ${{ secrets.SE01_SIASIS_EMAIL_USER }}
-          SE01_SIASIS_EMAIL_APPLICATION_PASSWORD : ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
+          SE01_SIASIS_EMAIL_USER: ${{ secrets.SE01_SIASIS_EMAIL_USER }}
+          SE01_SIASIS_EMAIL_APPLICATION_PASSWORD: ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
           ENTORNO: ${{ secrets.ENTORNO }}
