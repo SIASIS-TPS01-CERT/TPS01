@@ -1,10 +1,13 @@
-import { CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA } from "../../../../../constants/ASISTENCIA_ENTRADA_SALIDA_ESCOLAR";
+import RDP03_DB_INSTANCES from "../../../connectors/mongodb";
+
 import { MongoOperation } from "../../../../../interfaces/shared/RDP03/MongoOperation";
 import {
   EstudianteActivoSecundaria,
   RegistroEstudianteSecundariaRedis,
 } from "../../../../../jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria";
-import RDP03_DB_INSTANCES from "../../../connectors/mongodb";
+import { CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA } from "../../../../../constants/ASISTENCIA_ENTRADA_SALIDA_ESCOLAR";
+import { ModoRegistro } from "../../../../../interfaces/shared/ModoRegistroPersonal";
+import { RegistroAsistenciaExistente } from "../../../../../interfaces/shared/AsistenciasEscolares";
 
 // Interfaz para el resultado del registro de faltas
 interface ResultadoRegistroFaltas {
@@ -12,14 +15,6 @@ interface ResultadoRegistroFaltas {
   faltasSalidaRegistradas: number;
   estudiantesSinEntrada: EstudianteActivoSecundaria[];
   estudiantesSinSalida?: EstudianteActivoSecundaria[];
-}
-
-// Interfaz para el registro existente en MongoDB
-interface RegistroAsistenciaExistente {
-  _id: string;
-  Id_Estudiante: string;
-  Mes: number;
-  Estados: string;
 }
 
 /**
@@ -50,7 +45,7 @@ export async function registrarFaltasEstudiantesSecundaria(
     const estudiantesConSalida = new Set<string>();
 
     for (const registro of registrosProcesados) {
-      if (registro.modoRegistro === "E") {
+      if (registro.modoRegistro === ModoRegistro.Entrada) {
         estudiantesConEntrada.add(registro.idEstudiante);
       } else if (registro.modoRegistro === "S") {
         estudiantesConSalida.add(registro.idEstudiante);
@@ -76,7 +71,7 @@ export async function registrarFaltasEstudiantesSecundaria(
             estudiante,
             mes,
             dia,
-            "E"
+            ModoRegistro.Entrada
           );
 
           if (faltaRegistrada) {
@@ -95,7 +90,7 @@ export async function registrarFaltasEstudiantesSecundaria(
             estudiante,
             mes,
             dia,
-            "S"
+            ModoRegistro.Salida
           );
 
           if (faltaRegistrada) {
@@ -138,7 +133,7 @@ async function registrarFaltaIndividual(
   estudiante: EstudianteActivoSecundaria,
   mes: number,
   dia: number,
-  modoRegistro: "E" | "S"
+  modoRegistro: ModoRegistro
 ): Promise<boolean> {
   try {
     // Verificar si ya existe un registro para este estudiante y mes
@@ -155,7 +150,7 @@ async function registrarFaltaIndividual(
       operacionBuscar
     )) as RegistroAsistenciaExistente | null;
 
-    let estadosActualizados: Record<
+    let asistenciasMensualesActualizadas: Record<
       number,
       Record<string, { DesfaseSegundos: number | null }>
     >;
@@ -163,39 +158,46 @@ async function registrarFaltaIndividual(
     if (registroExistente) {
       // Ya existe registro para este mes, verificar si ya tiene falta registrada
       try {
-        estadosActualizados = JSON.parse(registroExistente.Estados);
+        asistenciasMensualesActualizadas = JSON.parse(
+          registroExistente.Asistencias_Mensuales
+        );
       } catch (parseError) {
         console.warn(
           `⚠️ Error parseando estados existentes para estudiante ${estudiante.idEstudiante}, iniciando nuevo registro`
         );
-        estadosActualizados = {};
+        asistenciasMensualesActualizadas = {};
       }
 
       // Verificar si ya existe registro para este día y modo
       if (
-        estadosActualizados[dia] &&
-        estadosActualizados[dia][modoRegistro] !== undefined
+        asistenciasMensualesActualizadas[dia] &&
+        asistenciasMensualesActualizadas[dia][modoRegistro] !== undefined
       ) {
         // Ya existe registro para este día y modo, no sobrescribir
         return false;
       }
 
       // Agregar falta
-      if (!estadosActualizados[dia]) {
-        estadosActualizados[dia] = {};
+      if (!asistenciasMensualesActualizadas[dia]) {
+        asistenciasMensualesActualizadas[dia] = {};
       }
-      estadosActualizados[dia][modoRegistro] = {
+      asistenciasMensualesActualizadas[dia][modoRegistro] = {
         DesfaseSegundos: null, // null indica falta
       };
 
-      // Actualizar registro existente
+      // Actualizar registro existente usando Id_Estudiante + Mes (no _id)
       const operacionActualizar: MongoOperation = {
         operation: "updateOne",
         collection: estudiante.tablaAsistencia,
-        filter: { _id: registroExistente._id },
+        filter: {
+          Id_Estudiante: estudiante.idEstudiante,
+          Mes: mes,
+        },
         data: {
           $set: {
-            Estados: JSON.stringify(estadosActualizados),
+            Asistencias_Mensuales: JSON.stringify(
+              asistenciasMensualesActualizadas
+            ),
           },
         },
       };
@@ -203,7 +205,7 @@ async function registrarFaltaIndividual(
       await RDP03_DB_INSTANCES.executeOperation(operacionActualizar);
     } else {
       // No existe registro para este mes, crear uno nuevo con la falta
-      estadosActualizados = {
+      asistenciasMensualesActualizadas = {
         [dia]: {
           [modoRegistro]: {
             DesfaseSegundos: null, // null indica falta
@@ -222,7 +224,9 @@ async function registrarFaltaIndividual(
           $set: {
             Id_Estudiante: estudiante.idEstudiante,
             Mes: mes,
-            Estados: JSON.stringify(estadosActualizados),
+            Asistencias_Mensuales: JSON.stringify(
+              asistenciasMensualesActualizadas
+            ),
           },
         },
         options: {
@@ -233,7 +237,8 @@ async function registrarFaltaIndividual(
       await RDP03_DB_INSTANCES.executeOperation(operacionUpsert);
     }
 
-    const tipoRegistro = modoRegistro === "E" ? "entrada" : "salida";
+    const tipoRegistro =
+      modoRegistro === ModoRegistro.Entrada ? "entrada" : "salida";
     console.log(
       `❌ Falta de ${tipoRegistro} registrada para ${estudiante.nombreCompleto} (${estudiante.idEstudiante}) en día ${dia}`
     );

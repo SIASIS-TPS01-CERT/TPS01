@@ -1,3 +1,5 @@
+import { RegistroAsistenciaExistente } from "../../../../../interfaces/shared/AsistenciasEscolares";
+import { ModoRegistro } from "../../../../../interfaces/shared/ModoRegistroPersonal";
 import { NivelEducativo } from "../../../../../interfaces/shared/NivelEducativo";
 import { MongoOperation } from "../../../../../interfaces/shared/RDP03/MongoOperation";
 import { TABLAS_ASISTENCIAS_ESCOLARES } from "../../../../../interfaces/shared/RDP03/TablasDeAsistenciaEscolar";
@@ -11,14 +13,6 @@ interface ResultadoRegistroSecundaria {
   registrosSalidaGuardados: number;
   registrosIgnorados: number;
   errores: string[];
-}
-
-// Interfaz para el registro existente en MongoDB
-interface RegistroAsistenciaExistente {
-  _id: string;
-  Id_Estudiante: string;
-  Mes: number;
-  Estados: string;
 }
 
 /**
@@ -114,7 +108,7 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
           operacionBuscar
         )) as RegistroAsistenciaExistente | null;
 
-        let estadosActualizados: Record<
+        let asistenciasMensualesActualizadas: Record<
           number,
           Record<string, { DesfaseSegundos: number }>
         >;
@@ -122,18 +116,20 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
         if (registroExistente) {
           // Ya existe registro para este mes, actualizarlo
           try {
-            estadosActualizados = JSON.parse(registroExistente.Estados);
+            asistenciasMensualesActualizadas = JSON.parse(
+              registroExistente.Asistencias_Mensuales
+            );
           } catch (parseError) {
             console.warn(
               `⚠️ Error parseando estados existentes para estudiante ${idEstudiante}, iniciando nuevo registro`
             );
-            estadosActualizados = {};
+            asistenciasMensualesActualizadas = {};
           }
 
           // Verificar si ya existe registro para este día y modo
           if (
-            estadosActualizados[diaActual] &&
-            estadosActualizados[diaActual][modoRegistro]
+            asistenciasMensualesActualizadas[diaActual] &&
+            asistenciasMensualesActualizadas[diaActual][modoRegistro]
           ) {
             console.log(
               `ℹ️ Ya existe registro para estudiante ${idEstudiante} en día ${diaActual}, modo ${modoRegistro}, manteniendo existente`
@@ -143,10 +139,10 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
           }
 
           // Agregar nuevo registro
-          if (!estadosActualizados[diaActual]) {
-            estadosActualizados[diaActual] = {};
+          if (!asistenciasMensualesActualizadas[diaActual]) {
+            asistenciasMensualesActualizadas[diaActual] = {};
           }
-          estadosActualizados[diaActual][modoRegistro] = {
+          asistenciasMensualesActualizadas[diaActual][modoRegistro] = {
             DesfaseSegundos: desfaseSegundos,
           };
 
@@ -157,7 +153,9 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
             filter: { _id: registroExistente._id },
             data: {
               $set: {
-                Estados: JSON.stringify(estadosActualizados),
+                Asistencias_Mensuales: JSON.stringify(
+                  asistenciasMensualesActualizadas
+                ),
               },
             },
           };
@@ -169,7 +167,7 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
           );
         } else {
           // No existe registro para este mes, crear uno nuevo
-          estadosActualizados = {
+          asistenciasMensualesActualizadas = {
             [diaActual]: {
               [modoRegistro]: {
                 DesfaseSegundos: desfaseSegundos,
@@ -188,7 +186,9 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
               $set: {
                 Id_Estudiante: idEstudiante,
                 Mes: mesActual,
-                Estados: JSON.stringify(estadosActualizados),
+                Asistencias_Mensuales: JSON.stringify(
+                  asistenciasMensualesActualizadas
+                ),
               },
             },
             options: {
@@ -204,7 +204,7 @@ export async function registrarAsistenciasEstudiantesSecundariaDesdeRedis(
         }
 
         // Contar estadísticas
-        if (modoRegistro === "E") {
+        if (modoRegistro === ModoRegistro.Entrada) {
           registrosEntradaGuardados++;
         } else {
           registrosSalidaGuardados++;

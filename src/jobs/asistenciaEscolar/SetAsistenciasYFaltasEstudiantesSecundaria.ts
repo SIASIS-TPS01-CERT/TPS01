@@ -6,7 +6,6 @@ import { verificarDiaEvento } from "../../core/databases/queries/RDP02/eventos/v
 import { obtenerFechasActuales } from "../../core/utils/dates/obtenerFechasActuales";
 import { RolesSistema } from "../../interfaces/shared/RolesSistema";
 import { TipoAsistencia } from "../../interfaces/shared/AsistenciaRequests";
-
 import { redisClient } from "../../config/Redis/RedisClient";
 import { CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA } from "../../constants/ASISTENCIA_ENTRADA_SALIDA_ESCOLAR";
 import { obtenerEstudiantesActivosSecundaria } from "../../core/databases/queries/RDP04/estudiantes/obtenerEstudiantesActivosSecundaria";
@@ -36,7 +35,7 @@ export interface EstudianteActivoSecundaria {
   nombres: string;
   apellidos: string;
   grado: number;
-  nivel: "S";
+  nivel: NivelEducativo;
   tablaAsistencia: RDP03_Nombres_Tablas;
   nombreCompleto: string;
 }
@@ -190,14 +189,14 @@ async function main() {
       let registrosFiltrados = registrosRedis;
       if (!CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA) {
         const registrosEntradaOriginales = registrosRedis.filter(
-          (r) => r.modoRegistro === "E"
+          (r) => r.modoRegistro === ModoRegistro.Entrada
         ).length;
         const registrosSalidaOriginales = registrosRedis.filter(
-          (r) => r.modoRegistro === "S"
+          (r) => r.modoRegistro === ModoRegistro.Salida
         ).length;
 
         registrosFiltrados = registrosRedis.filter(
-          (r) => r.modoRegistro === "E"
+          (r) => r.modoRegistro === ModoRegistro.Entrada
         );
 
         console.log(

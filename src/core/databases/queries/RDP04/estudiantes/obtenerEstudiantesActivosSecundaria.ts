@@ -90,7 +90,7 @@ export async function obtenerEstudiantesActivosSecundaria(): Promise<
             nombres: estudiante.Nombres,
             apellidos: estudiante.Apellidos,
             grado: grado,
-            nivel: "S",
+            nivel: NivelEducativo.SECUNDARIA,
             tablaAsistencia: tablaAsistencia,
             nombreCompleto: `${estudiante.Nombres} ${estudiante.Apellidos}`,
           });

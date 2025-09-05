@@ -1,3 +1,5 @@
+
+
 export enum EstadosAsistencia {
   Temprano = "A",
   Tarde = "T",
