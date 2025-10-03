@@ -8,6 +8,9 @@ import {
 import { CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA } from "../../../../../constants/ASISTENCIA_ENTRADA_SALIDA_ESCOLAR";
 import { ModoRegistro } from "../../../../../interfaces/shared/ModoRegistroPersonal";
 import { RegistroAsistenciaExistente } from "../../../../../interfaces/shared/AsistenciasEscolares";
+import { executeMongoDBOperation } from "../../../connectors/mongodb";
+import { RolesSistema } from "../../../../../interfaces/shared/RolesSistema";
+import { RDP03_Nombres_Tablas } from "../../../../../interfaces/shared/RDP03/RDP03_Tablas";
 
 // Interfaz para el resultado del registro de faltas
 interface ResultadoRegistroFaltas {
@@ -15,6 +18,59 @@ interface ResultadoRegistroFaltas {
   faltasSalidaRegistradas: number;
   estudiantesSinEntrada: EstudianteActivoSecundaria[];
   estudiantesSinSalida?: EstudianteActivoSecundaria[];
+}
+
+/**
+ * Obtiene el estado actual de registros de asistencia para múltiples estudiantes
+ * OPTIMIZACIÓN: Una sola consulta por tabla en lugar de consultas individuales
+ */
+async function obtenerEstadoActualEstudiantesParaFaltas(
+  estudiantesIds: string[],
+  mes: number,
+  tablaAsistencia: RDP03_Nombres_Tablas
+): Promise<Map<string, RegistroAsistenciaExistente>> {
+  try {
+    if (estudiantesIds.length === 0) {
+      return new Map();
+    }
+
+    console.log(
+      `🔍 Consultando estado actual de ${estudiantesIds.length} estudiantes en ${tablaAsistencia} para registro de faltas`
+    );
+
+    const operacionBuscarTodos: MongoOperation = {
+      operation: "find",
+      collection: tablaAsistencia,
+      filter: {
+        Id_Estudiante: { $in: estudiantesIds },
+        Mes: mes,
+      },
+    };
+
+    // CLAVE: Una sola consulta a una instancia específica (no aleatoria)
+    const registrosExistentes = (await executeMongoDBOperation(
+      operacionBuscarTodos,
+      { role: RolesSistema.Directivo } // Usar grupo específico para consistencia
+    )) as RegistroAsistenciaExistente[];
+
+    // Crear mapa para acceso rápido por ID de estudiante
+    const mapaRegistros = new Map<string, RegistroAsistenciaExistente>();
+    registrosExistentes.forEach((registro: RegistroAsistenciaExistente) => {
+      mapaRegistros.set(registro.Id_Estudiante, registro);
+    });
+
+    console.log(
+      `✅ Encontrados ${mapaRegistros.size} registros existentes en ${tablaAsistencia} para análisis de faltas`
+    );
+
+    return mapaRegistros;
+  } catch (error) {
+    console.error(
+      `❌ Error obteniendo estado actual de estudiantes para faltas en ${tablaAsistencia}:`,
+      error
+    );
+    return new Map();
+  }
 }
 
 /**
@@ -61,46 +117,91 @@ export async function registrarFaltasEstudiantesSecundaria(
       );
     }
 
-    // Procesar cada estudiante activo
+    // OPTIMIZACIÓN: Agrupar estudiantes por tabla para consultas masivas
+    const estudiantesPorTabla = new Map<
+      RDP03_Nombres_Tablas,
+      EstudianteActivoSecundaria[]
+    >();
+
     for (const estudiante of estudiantesActivos) {
+      if (!estudiantesPorTabla.has(estudiante.tablaAsistencia)) {
+        estudiantesPorTabla.set(estudiante.tablaAsistencia, []);
+      }
+      estudiantesPorTabla.get(estudiante.tablaAsistencia)!.push(estudiante);
+    }
+
+    console.log(
+      `🗂️ Estudiantes agrupados en ${estudiantesPorTabla.size} tablas de asistencia`
+    );
+
+    // Procesar cada tabla por separado
+    for (const [tablaAsistencia, estudiantes] of estudiantesPorTabla) {
       try {
-        // PROCESAR ENTRADA
-        if (!estudiantesConEntrada.has(estudiante.idEstudiante)) {
-          // Estudiante sin registro de entrada, registrar falta
-          const faltaRegistrada = await registrarFaltaIndividual(
-            estudiante,
-            mes,
-            dia,
-            ModoRegistro.Entrada
-          );
+        console.log(
+          `\n📋 Procesando faltas en tabla ${tablaAsistencia} para ${estudiantes.length} estudiantes`
+        );
 
-          if (faltaRegistrada) {
-            faltasEntradaRegistradas++;
-            estudiantesSinEntrada.push(estudiante);
-          }
-        }
+        const idsEstudiantes = estudiantes.map((e) => e.idEstudiante);
 
-        // PROCESAR SALIDA (solo si está habilitado el control)
-        if (
-          CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA &&
-          !estudiantesConSalida.has(estudiante.idEstudiante)
-        ) {
-          // Estudiante sin registro de salida, registrar falta
-          const faltaRegistrada = await registrarFaltaIndividual(
-            estudiante,
-            mes,
-            dia,
-            ModoRegistro.Salida
-          );
+        // CLAVE: Una sola consulta masiva por tabla
+        const estadoActual = await obtenerEstadoActualEstudiantesParaFaltas(
+          idsEstudiantes,
+          mes,
+          tablaAsistencia
+        );
 
-          if (faltaRegistrada) {
-            faltasSalidaRegistradas++;
-            estudiantesSinSalida.push(estudiante);
+        // Procesar cada estudiante usando el estado consultado masivamente
+        for (const estudiante of estudiantes) {
+          try {
+            // Usar el estado consultado masivamente
+            const registroExistente = estadoActual.get(estudiante.idEstudiante);
+
+            // PROCESAR ENTRADA
+            if (!estudiantesConEntrada.has(estudiante.idEstudiante)) {
+              // Estudiante sin registro de entrada, registrar falta
+              const faltaRegistrada = await registrarFaltaIndividual(
+                estudiante,
+                mes,
+                dia,
+                ModoRegistro.Entrada,
+                registroExistente
+              );
+
+              if (faltaRegistrada) {
+                faltasEntradaRegistradas++;
+                estudiantesSinEntrada.push(estudiante);
+              }
+            }
+
+            // PROCESAR SALIDA (solo si está habilitado el control)
+            if (
+              CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA &&
+              !estudiantesConSalida.has(estudiante.idEstudiante)
+            ) {
+              // Estudiante sin registro de salida, registrar falta
+              const faltaRegistrada = await registrarFaltaIndividual(
+                estudiante,
+                mes,
+                dia,
+                ModoRegistro.Salida,
+                registroExistente
+              );
+
+              if (faltaRegistrada) {
+                faltasSalidaRegistradas++;
+                estudiantesSinSalida.push(estudiante);
+              }
+            }
+          } catch (error) {
+            console.error(
+              `❌ Error procesando faltas para estudiante ${estudiante.nombreCompleto} (${estudiante.idEstudiante}):`,
+              error
+            );
           }
         }
       } catch (error) {
         console.error(
-          `❌ Error procesando faltas para estudiante ${estudiante.nombreCompleto} (${estudiante.idEstudiante}):`,
+          `❌ Error procesando faltas en tabla ${tablaAsistencia}:`,
           error
         );
       }
@@ -128,28 +229,16 @@ export async function registrarFaltasEstudiantesSecundaria(
 
 /**
  * Registra una falta individual para un estudiante específico
+ * OPTIMIZACIÓN: Recibe el registro existente como parámetro (ya consultado masivamente)
  */
 async function registrarFaltaIndividual(
   estudiante: EstudianteActivoSecundaria,
   mes: number,
   dia: number,
-  modoRegistro: ModoRegistro
+  modoRegistro: ModoRegistro,
+  registroExistente?: RegistroAsistenciaExistente | null
 ): Promise<boolean> {
   try {
-    // Verificar si ya existe un registro para este estudiante y mes
-    const operacionBuscar: MongoOperation = {
-      operation: "findOne",
-      collection: estudiante.tablaAsistencia,
-      filter: {
-        Id_Estudiante: estudiante.idEstudiante,
-        Mes: mes,
-      },
-    };
-
-    const registroExistente = (await RDP03_DB_INSTANCES.executeOperation(
-      operacionBuscar
-    )) as RegistroAsistenciaExistente | null;
-
     let asistenciasMensualesActualizadas: Record<
       number,
       Record<string, { DesfaseSegundos: number | null }>
@@ -185,7 +274,7 @@ async function registrarFaltaIndividual(
         DesfaseSegundos: null, // null indica falta
       };
 
-      // Actualizar registro existente usando Id_Estudiante + Mes (no _id)
+      // Actualizar registro existente en TODAS las instancias
       const operacionActualizar: MongoOperation = {
         operation: "updateOne",
         collection: estudiante.tablaAsistencia,
