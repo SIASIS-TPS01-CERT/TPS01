@@ -6,7 +6,7 @@ import {
 } from "../../../../utils/dates/modificacionFechas";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 import { verificarDentroVacacionesInterescolares } from "../../../../utils/helpers/verificators/verificarDentroVacacionesInterescolares";
-import { verificarDentroSemanaGestion } from "../../../../utils/helpers/verificators/verificarDentroSemanaGestion";
+import { verificarDentroSemanaGestion } from "../fechas-importantes/verificarDentroSemanaGestion";
 
 // Constantes para la extensión del rango total
 const EXTENSION_INICIO_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS = 1;
@@ -21,20 +21,32 @@ type HorariosGeneralesReturn = {
 /**
  * Aplica extensión de horario al rango total (extiende 1 hora antes y 1 hora después)
  */
-function aplicarExtensionRangoTotal(horaInicio: Date, horaFin: Date): { inicio: Date; fin: Date } {
+function aplicarExtensionRangoTotal(
+  horaInicio: Date,
+  horaFin: Date
+): { inicio: Date; fin: Date } {
   const inicioExtendido = new Date(horaInicio);
-  inicioExtendido.setUTCHours(horaInicio.getUTCHours() - EXTENSION_INICIO_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS);
-  
+  inicioExtendido.setUTCHours(
+    horaInicio.getUTCHours() -
+      EXTENSION_INICIO_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS
+  );
+
   const finExtendido = new Date(horaFin);
-  finExtendido.setUTCHours(horaFin.getUTCHours() + EXTENSION_FIN_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS);
-  
+  finExtendido.setUTCHours(
+    horaFin.getUTCHours() + EXTENSION_FIN_TOMA_ASISTENCIA_RANGO_TOTAL_HORAS
+  );
+
   console.log(`🔄 Extensión aplicada al rango total:`);
-  console.log(`   Original: ${horaInicio.toISOString()} - ${horaFin.toISOString()}`);
-  console.log(`   Extendido: ${inicioExtendido.toISOString()} - ${finExtendido.toISOString()}`);
-  
+  console.log(
+    `   Original: ${horaInicio.toISOString()} - ${horaFin.toISOString()}`
+  );
+  console.log(
+    `   Extendido: ${inicioExtendido.toISOString()} - ${finExtendido.toISOString()}`
+  );
+
   return {
     inicio: inicioExtendido,
-    fin: finExtendido
+    fin: finExtendido,
   };
 }
 
@@ -152,7 +164,10 @@ export async function obtenerHorariosGenerales(
       });
 
       // Aplicar extensión solo al rango total
-      const rangoTotalExtendido = aplicarExtensionRangoTotal(horaInicio, horaFin);
+      const rangoTotalExtendido = aplicarExtensionRangoTotal(
+        horaInicio,
+        horaFin
+      );
 
       // Durante períodos especiales, todos los roles usan el mismo horario especial
       // PERO el rango total se extiende con las constantes
@@ -163,11 +178,11 @@ export async function obtenerHorariosGenerales(
         },
         TomaAsistenciaProfesorPrimaria: {
           Inicio: horaInicio, // Sin extensión
-          Fin: horaFin,       // Sin extensión
+          Fin: horaFin, // Sin extensión
         },
         TomaAsistenciaAuxiliares: {
           Inicio: horaInicio, // Sin extensión
-          Fin: horaFin,       // Sin extensión
+          Fin: horaFin, // Sin extensión
         },
       };
     }
@@ -326,7 +341,10 @@ export async function obtenerHorariosGenerales(
     );
 
     // Aplicar extensión solo al rango total
-    const rangoTotalExtendido = aplicarExtensionRangoTotal(horaInicioTotalBase, horaFinTotalBase);
+    const rangoTotalExtendido = aplicarExtensionRangoTotal(
+      horaInicioTotalBase,
+      horaFinTotalBase
+    );
 
     const horaInicioPrimaria = crearFechaConHora(
       fechaActual,
@@ -369,11 +387,11 @@ export async function obtenerHorariosGenerales(
       },
       TomaAsistenciaProfesorPrimaria: {
         Inicio: horaInicioPrimaria, // Sin extensión
-        Fin: horaFinPrimaria,       // Sin extensión
+        Fin: horaFinPrimaria, // Sin extensión
       },
       TomaAsistenciaAuxiliares: {
         Inicio: horaInicioAuxiliar, // Sin extensión
-        Fin: horaFinAuxiliar,       // Sin extensión
+        Fin: horaFinAuxiliar, // Sin extensión
       },
     };
   } catch (error) {
@@ -395,12 +413,12 @@ export async function obtenerHorariosGenerales(
         Fin: rangoTotalExtendido.fin,
       },
       TomaAsistenciaProfesorPrimaria: {
-        Inicio: initDate,  // Sin extensión
-        Fin: endDate,      // Sin extensión
+        Inicio: initDate, // Sin extensión
+        Fin: endDate, // Sin extensión
       },
       TomaAsistenciaAuxiliares: {
-        Inicio: initDate,  // Sin extensión
-        Fin: endDate,      // Sin extensión
+        Inicio: initDate, // Sin extensión
+        Fin: endDate, // Sin extensión
       },
     };
   }

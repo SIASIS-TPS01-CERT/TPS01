@@ -6,7 +6,7 @@ import {
 import { registrarAsistenciasUnitariasDePersonalDesdeRedis } from "../../core/databases/queries/RDP02/asistencias-diarias-unitarias/registrarAsistenciasUnitariasDePersonalDesdeRedis";
 import { bloquearRoles } from "../../core/databases/queries/RDP02/bloqueo-roles/bloquearRoles";
 import { desbloquearRoles } from "../../core/databases/queries/RDP02/bloqueo-roles/desbloquearRoles";
-import { verificarYRegistrarAsistenciasIncompletas } from "../../core/databases/queries/RDP02/personales-para-toma-asistencia/verificarYRegistrarAsistenciasIncompletas";
+import { verificarYRegistrarAsistenciasIncompletas } from "../../core/databases/queries/RDP02/personal-en-general/verificarYRegistrarAsistenciasIncompletas";
 import { obtenerRegistrosAsistenciaPersonalRedis } from "../../core/databases/queries/RDP05/obtenerRegistrosAsistenciaPersonalRedis";
 import { descargarArchivoJSONDesdeGoogleDrive } from "../../core/external/google/drive/descargarArchivoJSONDesdeGoogle";
 import { obtenerFechasActuales } from "../../core/utils/dates/obtenerFechasActuales";
@@ -20,8 +20,6 @@ import { DatosAsistenciaHoyIE20935 } from "../../interfaces/shared/Asistencia/Da
 
 async function main() {
   try {
-
-
     console.log(
       "🚀 Iniciando verificación de asistencias incompletas y procesamiento de registros Redis..."
     );

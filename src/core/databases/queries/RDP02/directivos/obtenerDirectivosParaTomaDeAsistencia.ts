@@ -3,7 +3,7 @@ import { DirectivoParaTomaDeAsistencia } from "../../../../../interfaces/shared/
 import { extraerHora } from "../../../../utils/dates/modificacionFechas";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 import { verificarDentroVacacionesInterescolares } from "../../../../utils/helpers/verificators/verificarDentroVacacionesInterescolares";
-import { verificarDentroSemanaGestion } from "../../../../utils/helpers/verificators/verificarDentroSemanaGestion";
+import { verificarDentroSemanaGestion } from "../fechas-importantes/verificarDentroSemanaGestion";
 
 export async function obtenerDirectivosParaTomarAsistencia(
   fechaActual: Date,

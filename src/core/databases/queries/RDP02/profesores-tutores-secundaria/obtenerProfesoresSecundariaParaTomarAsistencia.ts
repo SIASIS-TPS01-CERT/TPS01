@@ -3,7 +3,7 @@ import { DURACION_HORA_ACADEMICA_EN_MINUTOS } from "../../../../../constants/DUR
 import { ProfesorTutorSecundariaParaTomaDeAsistencia } from "../../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
 import { extraerHora } from "../../../../utils/dates/modificacionFechas";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
-import { verificarDentroSemanaGestion } from "../../../../utils/helpers/verificators/verificarDentroSemanaGestion";
+import { verificarDentroSemanaGestion } from "../fechas-importantes/verificarDentroSemanaGestion";
 import { verificarDentroVacacionesInterescolares } from "../../../../utils/helpers/verificators/verificarDentroVacacionesInterescolares";
 
 /**

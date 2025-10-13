@@ -1,2 +1,2 @@
 
-export const FECHA_HORA_MOCKEADAS = false;
+export const FECHA_HORA_MOCKEADAS = true;

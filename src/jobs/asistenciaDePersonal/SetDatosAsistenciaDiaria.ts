@@ -18,12 +18,12 @@ import { closePool } from "../../core/databases/connectors/postgres";
 
 import { obtenerAuxiliaresParaTomarAsistencia } from "../../core/databases/queries/RDP02/auxiliares/obtenerAuxiliaresParaTomarAsistencia";
 import { actualizarArchivoRespaldoEnGoogleDrive } from "../../core/external/google/drive/actualizarArchivoDatosAsistencia";
-import { registrarAsistenciaAutoNullParaPersonalInactivo } from "../../core/databases/queries/RDP02/personales-para-toma-asistencia/registrarAsistenciaAutoNullParaPersonalInactivo";
+import { registrarAsistenciaAutoNullParaPersonalInactivo } from "../../core/databases/queries/RDP02/personal-en-general/registrarAsistenciaAutoNullParaPersonalInactivo";
 import { obtenerVacacionesInterescolares } from "../../core/databases/queries/RDP02/vacaciones-interescolares/obtenerVacacionesInterescolares";
 import { obtenerDirectivosParaTomarAsistencia } from "../../core/databases/queries/RDP02/directivos/obtenerDirectivosParaTomaDeAsistencia";
 import { NOMBRE_ARCHIVO_CON_DATOS_ASISTENCIA_DIARIOS } from "../../constants/NOMBRE_ARCHIVOS_SISTEMA";
-import verificarFueraAñoEscolar from "../../core/utils/helpers/verificators/verificarDentroAñoEscolar";
-import { verificarDentroSemanaGestion } from "../../core/utils/helpers/verificators/verificarDentroSemanaGestion";
+import verificarFueraAñoEscolar from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroAñoEscolar";
+import { verificarDentroSemanaGestion } from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroSemanaGestion";
 
 async function generarDatosAsistenciaDiaria(): Promise<DatosAsistenciaHoyIE20935> {
   // Obtener fechas actuales

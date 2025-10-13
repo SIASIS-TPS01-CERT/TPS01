@@ -24,7 +24,7 @@ import { ListaEstudiantesPorGradoParaHoy } from "../../interfaces/shared/Asisten
 import { NivelEducativo } from "../../interfaces/shared/NivelEducativo";
 import { generarNombreArchivo } from "../../core/utils/helpers/generators/generarNombreArchivoJSONListaEstudiantes";
 import { obtenerFechasActuales } from "../../core/utils/dates/obtenerFechasActuales";
-import verificarFueraAñoEscolar from "../../core/utils/helpers/verificators/verificarDentroAñoEscolar";
+import verificarFueraAñoEscolar from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroAñoEscolar";
 import { obtenerFechasAñoEscolar } from "../../core/databases/queries/RDP02/fechas-importantes/obtenerFechasAñoEscolar";
 import { NOMBRE_ARCHIVO_REPORTE_ACTUALIZACION_DE_LISTAS_DE_ESTUDIANTES } from "../../constants/NOMBRE_ARCHIVOS_SISTEMA";
 import { ReporteActualizacionDeListasEstudiantes } from "../../interfaces/shared/Asistencia/ReporteModificacionesListasDeEstudiantes";

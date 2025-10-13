@@ -2,7 +2,7 @@ import { NOMBRE_ARCHIVO_CON_DATOS_ASISTENCIA_DIARIOS } from "../../../../../cons
 import { DatosAsistenciaHoyIE20935 } from "../../../../../interfaces/shared/Asistencia/DatosAsistenciaHoyIE20935";
 import { RolesSistema } from "../../../../../interfaces/shared/RolesSistema";
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
-import { PersonalActivo } from "../personales-para-toma-asistencia/verificarYRegistrarAsistenciasIncompletas";
+import { PersonalActivo } from "../personal-en-general/verificarYRegistrarAsistenciasIncompletas";
 
 export async function obtenerUltimoArchivoDatosAsistenciaHoy(): Promise<string> {
   try {

@@ -16,6 +16,15 @@ import { NivelEducativo } from "../../interfaces/shared/NivelEducativo";
 import { ModoRegistro } from "../../interfaces/shared/ModoRegistroPersonal";
 import { ActoresSistema } from "../../interfaces/shared/ActoresSistema";
 
+// 🆕 NUEVAS IMPORTACIONES PARA VALIDACIONES
+import { obtenerVacacionesInterescolares } from "../../core/databases/queries/RDP02/vacaciones-interescolares/obtenerVacacionesInterescolares";
+import { obtenerSemanaDeGestion } from "../../core/databases/queries/RDP02/fechas-importantes/obtenerSemanaDeGestion";
+import { obtenerFechasAñoEscolar } from "../../core/databases/queries/RDP02/fechas-importantes/obtenerFechasAñoEscolar";
+import verificarFueraAñoEscolar from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroAñoEscolar";
+import { verificarDentroSemanaGestion } from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroSemanaGestion";
+import { procesarYGuardarAsistenciasDiarias } from "../../core/utils/helpers/processors/procesarYGuadarAsistenciasDiarias";
+import { T_Aulas } from "@prisma/client";
+
 // Interfaz para registros de estudiantes desde Redis
 export interface RegistroEstudianteSecundariaRedis {
   fecha: string;
@@ -35,9 +44,12 @@ export interface EstudianteActivoSecundaria {
   nombres: string;
   apellidos: string;
   grado: number;
+  seccion: string; // 🆕 AGREGADO
   nivel: NivelEducativo;
   tablaAsistencia: RDP03_Nombres_Tablas;
   nombreCompleto: string;
+  // 🆕 NUEVO: Información del aula
+  aula: T_Aulas;
 }
 
 /**
@@ -135,13 +147,138 @@ async function obtenerRegistrosAsistenciaEstudiantesSecundariaRedis(): Promise<
 }
 
 /**
+ * 🆕 Verifica si estamos en un periodo especial (vacaciones o semana de gestión)
+ */
+function verificarPeriodoEspecial(
+  fechaLocal: Date,
+  vacaciones: Array<{ Inicio: Date; Fin: Date }>,
+  semanaGestion: { Inicio: Date; Fin: Date } | null
+): { esVacaciones: boolean; esSemanaGestion: boolean } {
+  // Verificar vacaciones
+  const esVacaciones = vacaciones.some((vacacion) => {
+    return fechaLocal >= vacacion.Inicio && fechaLocal <= vacacion.Fin;
+  });
+
+  // Verificar semana de gestión
+  const esSemanaGestion = semanaGestion
+    ? verificarDentroSemanaGestion(fechaLocal, semanaGestion)
+    : false;
+
+  return { esVacaciones, esSemanaGestion: Boolean(esSemanaGestion) };
+}
+
+/**
  * Función principal del script
  */
 async function main() {
+  // Variables para almacenar datos en memoria
+  let estudiantesActivos: EstudianteActivoSecundaria[] = [];
+  let registrosFiltrados: RegistroEstudianteSecundariaRedis[] = [];
+  let fechaLocalPeru: Date;
+
   try {
     console.log(
       "🚀 Iniciando procesamiento de asistencias de estudiantes de secundaria..."
     );
+
+    // =================================================================
+    // 🆕 VALIDACIONES PREVIAS - SI ALGUNA FALLA, NO SE EJECUTA NADA
+    // =================================================================
+
+    // Obtener fecha actual
+    const fechas = obtenerFechasActuales();
+    fechaLocalPeru = fechas.fechaLocalPeru;
+    console.log(
+      `\n📅 Fecha actual (Perú): ${fechaLocalPeru.toISOString().split("T")[0]}`
+    );
+
+    console.log("\n🔍 === VALIDACIONES PREVIAS ===");
+
+    // ✅ VALIDACIÓN 1: ¿Es día de evento?
+    console.log("1️⃣ Verificando si es día de evento...");
+    const esDiaEvento = await verificarDiaEvento(fechaLocalPeru);
+
+    if (esDiaEvento) {
+      console.log("🎉 ❌ ES DÍA DE EVENTO");
+      console.log(
+        "⛔ Script cancelado: No se procesa asistencia en días de evento"
+      );
+      return; // ← SALIR COMPLETAMENTE
+    }
+    console.log("   ✅ No es día de evento, continuando...");
+
+    // ✅ VALIDACIÓN 2: ¿Estamos fuera del año escolar?
+    console.log("2️⃣ Verificando si estamos dentro del año escolar...");
+    const fechasAñoEscolar = await obtenerFechasAñoEscolar();
+    const fueraAñoEscolar = verificarFueraAñoEscolar(
+      fechaLocalPeru,
+      fechasAñoEscolar.Inicio_Año_Escolar,
+      fechasAñoEscolar.Fin_Año_Escolar
+    );
+
+    if (fueraAñoEscolar) {
+      console.log("📅 ❌ FUERA DEL AÑO ESCOLAR");
+      console.log(
+        `   Inicio año escolar: ${
+          fechasAñoEscolar.Inicio_Año_Escolar.toISOString().split("T")[0]
+        }`
+      );
+      console.log(
+        `   Fin año escolar: ${
+          fechasAñoEscolar.Fin_Año_Escolar.toISOString().split("T")[0]
+        }`
+      );
+      console.log(
+        "⛔ Script cancelado: No se procesa asistencia fuera del año escolar"
+      );
+      return; // ← SALIR COMPLETAMENTE
+    }
+    console.log("   ✅ Dentro del año escolar, continuando...");
+
+    // ✅ VALIDACIÓN 3: ¿Estamos en vacaciones interescolares?
+    console.log("3️⃣ Verificando si estamos en vacaciones interescolares...");
+    const vacacionesInterescolares = await obtenerVacacionesInterescolares();
+    const semanaGestion = await obtenerSemanaDeGestion();
+
+    const { esVacaciones, esSemanaGestion } = verificarPeriodoEspecial(
+      fechaLocalPeru,
+      vacacionesInterescolares,
+      semanaGestion
+    );
+
+    if (esVacaciones) {
+      console.log("🏖️ ❌ ESTAMOS EN VACACIONES INTERESCOLARES");
+      console.log(
+        "⛔ Script cancelado: No se procesa asistencia en vacaciones"
+      );
+      return; // ← SALIR COMPLETAMENTE
+    }
+    console.log("   ✅ No estamos en vacaciones, continuando...");
+
+    // ✅ VALIDACIÓN 4: ¿Estamos en semana de gestión?
+    console.log("4️⃣ Verificando si estamos en semana de gestión...");
+
+    if (esSemanaGestion) {
+      console.log("📋 ❌ ESTAMOS EN SEMANA DE GESTIÓN");
+      if (semanaGestion) {
+        console.log(
+          `   Inicio: ${semanaGestion.Inicio.toISOString().split("T")[0]}`
+        );
+        console.log(`   Fin: ${semanaGestion.Fin.toISOString().split("T")[0]}`);
+      }
+      console.log(
+        "⛔ Script cancelado: No se procesa asistencia en semana de gestión"
+      );
+      return; // ← SALIR COMPLETAMENTE
+    }
+    console.log("   ✅ No estamos en semana de gestión, continuando...");
+
+    console.log("\n✅ === TODAS LAS VALIDACIONES PASADAS ===");
+    console.log("🚦 Procediendo con el procesamiento de asistencias...\n");
+
+    // =================================================================
+    // PROCESAMIENTO NORMAL - Solo se ejecuta si pasó todas las validaciones
+    // =================================================================
 
     // Definir roles a bloquear (solo los que pueden interactuar con estudiantes)
     const rolesABloquear = [
@@ -164,18 +301,6 @@ async function main() {
     }
 
     try {
-      // Obtener fecha actual
-      const { fechaLocalPeru } = obtenerFechasActuales();
-      console.log(
-        `📅 Procesando asistencias de secundaria para: ${
-          fechaLocalPeru.toISOString().split("T")[0]
-        }`
-      );
-
-      // Verificar si es día de evento
-      const esDiaEvento = await verificarDiaEvento(fechaLocalPeru);
-      console.log(`🎉 ¿Es día de evento?: ${esDiaEvento ? "SÍ" : "NO"}`);
-
       // FASE 1: Procesamiento de registros Redis
       console.log(
         "\n🔄 === FASE 1: Procesamiento de registros Redis de estudiantes de secundaria ==="
@@ -186,7 +311,7 @@ async function main() {
         await obtenerRegistrosAsistenciaEstudiantesSecundariaRedis();
 
       // 1.2 Filtrar registros de salida si no está habilitado
-      let registrosFiltrados = registrosRedis;
+      registrosFiltrados = registrosRedis;
       if (!CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA) {
         const registrosEntradaOriginales = registrosRedis.filter(
           (r) => r.modoRegistro === ModoRegistro.Entrada
@@ -225,54 +350,49 @@ async function main() {
       }
 
       // FASE 2: Registrar faltas para estudiantes sin registro
-      if (esDiaEvento) {
-        console.log("\n🎉 === OMITIENDO FASE 2: Es día de evento ===");
-        console.log("🚫 No se registrarán faltas porque es un día de evento");
-      } else {
+      console.log(
+        "\n📋 === FASE 2: Registrar faltas de estudiantes de secundaria ==="
+      );
+
+      // 2.1 Obtener estudiantes activos de secundaria
+      estudiantesActivos = await obtenerEstudiantesActivosSecundaria();
+      console.log(
+        `👥 Estudiantes activos de secundaria encontrados: ${estudiantesActivos.length}`
+      );
+
+      // 2.2 Registrar faltas
+      const resultado = await registrarFaltasEstudiantesSecundaria(
+        estudiantesActivos,
+        registrosFiltrados,
+        fechaLocalPeru
+      );
+
+      // 2.3 Mostrar resultados
+      console.log("\n📊 === Resultados de registro de faltas ===");
+      console.log(
+        `👥 Total estudiantes activos procesados: ${estudiantesActivos.length}`
+      );
+      console.log(
+        `📥 Faltas de entrada registradas: ${resultado.faltasEntradaRegistradas}`
+      );
+
+      if (CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA) {
         console.log(
-          "\n📋 === FASE 2: Registrar faltas de estudiantes de secundaria ==="
+          `📤 Faltas de salida registradas: ${resultado.faltasSalidaRegistradas}`
         );
+      }
 
-        // 2.1 Obtener estudiantes activos de secundaria
-        const estudiantesActivos = await obtenerEstudiantesActivosSecundaria();
+      console.log(
+        `❌ Estudiantes con faltas de entrada: ${resultado.estudiantesSinEntrada.length}`
+      );
+
+      if (
+        CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA &&
+        resultado.estudiantesSinSalida
+      ) {
         console.log(
-          `👥 Estudiantes activos de secundaria encontrados: ${estudiantesActivos.length}`
+          `❌ Estudiantes con faltas de salida: ${resultado.estudiantesSinSalida.length}`
         );
-
-        // 2.2 Registrar faltas
-        const resultado = await registrarFaltasEstudiantesSecundaria(
-          estudiantesActivos,
-          registrosFiltrados,
-          fechaLocalPeru
-        );
-
-        // 2.3 Mostrar resultados
-        console.log("\n📊 === Resultados de registro de faltas ===");
-        console.log(
-          `👥 Total estudiantes activos procesados: ${estudiantesActivos.length}`
-        );
-        console.log(
-          `📥 Faltas de entrada registradas: ${resultado.faltasEntradaRegistradas}`
-        );
-
-        if (CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA) {
-          console.log(
-            `📤 Faltas de salida registradas: ${resultado.faltasSalidaRegistradas}`
-          );
-        }
-
-        console.log(
-          `❌ Estudiantes con faltas de entrada: ${resultado.estudiantesSinEntrada.length}`
-        );
-
-        if (
-          CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA &&
-          resultado.estudiantesSinSalida
-        ) {
-          console.log(
-            `❌ Estudiantes con faltas de salida: ${resultado.estudiantesSinSalida.length}`
-          );
-        }
       }
 
       console.log(
@@ -287,6 +407,31 @@ async function main() {
         console.warn("⚠️ Error al desbloquear roles:", unlockError);
       }
     }
+
+    // =================================================================
+    // FASE 3: Procesar y guardar archivo de asistencias diarias
+    // IMPORTANTE: Esto se hace DESPUÉS de desbloquear roles
+    // =================================================================
+    console.log(
+      "\n📦 === FASE 3: Procesar y guardar archivo de asistencias diarias ==="
+    );
+
+    try {
+      await procesarYGuardarAsistenciasDiarias({
+        estudiantesActivos,
+        registrosRedis: registrosFiltrados,
+        nivel: NivelEducativo.SECUNDARIA,
+        fechaActual: fechaLocalPeru,
+      });
+    } catch (error) {
+      console.error(
+        "❌ Error procesando archivo de asistencias diarias:",
+        error
+      );
+      // No lanzamos el error para que el script pueda finalizar correctamente
+    }
+
+    console.log("\n✅ === PROCESO COMPLETO FINALIZADO EXITOSAMENTE ===");
   } catch (error) {
     console.error(
       "❌ Error en procesamiento de asistencias de estudiantes de secundaria:",

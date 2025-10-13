@@ -40,3 +40,6 @@ export const NOMBRES_ARCHIVOS_LISTAS_ESTUDIANTES_DIARIAS: Record<
 
 export const NOMBRE_ARCHIVO_REPORTE_ACTUALIZACION_DE_LISTAS_DE_ESTUDIANTES =
   "reporte-actualizacion-listas-estudiantes.json";
+
+export const NOMBRE_ARCHIVO_IDS_ARCHIVOS_ULTIMAS_ASISTENCIAS_DIARIAS =
+  "ids-archivos-ultimas-asistencias-escolares-diarias.json";

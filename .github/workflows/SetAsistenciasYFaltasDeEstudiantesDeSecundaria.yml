@@ -1,18 +1,37 @@
-name: Ejecutar Script de registro de asistencias y faltas de Estudiantes de Secundaria Diarias
+name: Procesamiento Completo de Asistencias Secundaria
 
 on:
   schedule:
-    # Ejecutar a las 7:45 PM hora de Perú (UTC-5) de lunes a viernes
-    # En GitHub Actions se usa UTC, por lo que 7:45 PM en Perú es 12:45 AM (00:45) UTC del día siguiente
-    # Solo en meses de marzo (3) a diciembre (12)
+    # Ejecutar a las 7:45 PM hora de Perú (UTC-5) = 00:45 UTC del día siguiente
+    # Solo de marzo a diciembre, martes a sábado
     - cron: "45 0 * 3-12 2-6"
 
-  # Permite la ejecución manual para pruebas
+  # Permite ejecución manual
   workflow_dispatch:
+    inputs:
+      skip_script1:
+        description: "¿Omitir Script 1 (Registro de Asistencias)?"
+        required: false
+        type: boolean
+        default: false
+      skip_script2:
+        description: "¿Omitir Script 2 (Análisis y Reportes)?"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
-  ejecutar-script-asistencia:
+  # ============================================================
+  # JOB 1: Registro de Asistencias y Faltas
+  # ============================================================
+  registro-asistencias-secundaria:
+    name: Registro de Asistencias Secundaria
     runs-on: ubuntu-latest
+    # Solo ejecutar si no se pidió omitir
+    if: ${{ !inputs.skip_script1 }}
+
+    outputs:
+      success: ${{ steps.execution.outputs.success }}
 
     steps:
       - name: Checkout del repositorio
@@ -27,10 +46,15 @@ jobs:
       - name: Instalar dependencias
         run: npm install
 
-      - name: Ejecutar script con ts-node
+      - name: Ejecutar Script 1 - Registro de Asistencias
+        id: execution
         run: |
-          echo "Ejecutando script..."
+          echo "🚀 Ejecutando registro de asistencias..."
           npx ts-node ./src/jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria.ts
+
+          # Si el script se ejecutó exitosamente, marcar como success
+          echo "success=true" >> $GITHUB_OUTPUT
+          echo "✅ Script 1 completado exitosamente"
         env:
           RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
           RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
@@ -52,3 +76,74 @@ jobs:
           RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
           RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
           ENTORNO: ${{ secrets.ENTORNO }}
+
+  # ============================================================
+  # JOB 2: Análisis y Envío de Reportes
+  # ============================================================
+  analisis-reportes-secundaria:
+    name: Análisis y Reportes Secundaria
+    runs-on: ubuntu-latest
+    # Solo ejecutar si el Job 1 fue exitoso O si se pidió omitir el Job 1
+    needs: [registro-asistencias-secundaria]
+    if: |
+      always() && 
+      (needs.registro-asistencias-secundaria.outputs.success == 'true' || inputs.skip_script1) &&
+      !inputs.skip_script2
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm install
+
+      - name: Ejecutar Script 2 - Análisis y Reportes
+        run: |
+          echo "📊 Ejecutando análisis y generación de reportes..."
+          npx ts-node ./src/jobs/asistenciaEscolar/AnalizarYEnviarReportesFaltasTardanzasEscolaresConsecutivas.ts S
+          echo "✅ Script 2 completado exitosamente"
+        env:
+          # Base de datos
+          RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
+          RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
+          RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
+          RDP03_INS1_DATABASE_URL: ${{ secrets.RDP03_INS1_DATABASE_URL }}
+          RDP03_INS2_DATABASE_URL: ${{ secrets.RDP03_INS2_DATABASE_URL }}
+          RDP03_INS3_DATABASE_URL: ${{ secrets.RDP03_INS3_DATABASE_URL }}
+          RDP03_INS4_DATABASE_URL: ${{ secrets.RDP03_INS4_DATABASE_URL }}
+          RDP03_INS5_DATABASE_URL: ${{ secrets.RDP03_INS5_DATABASE_URL }}
+          # Google Drive
+          RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
+          RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
+          LOGO_GOOGLE_DRIVE_IMAGE_ID: ${{ secrets.LOGO_GOOGLE_DRIVE_IMAGE_ID }}
+          # Correo electrónico
+          SE01_SIASIS_EMAIL_USER: ${{ secrets.SE01_SIASIS_EMAIL_USER }}
+          SE01_SIASIS_EMAIL_APPLICATION_PASSWORD: ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
+          ENTORNO: ${{ secrets.ENTORNO }}
+
+  # ============================================================
+  # JOB 3: Notificación de Resultados (Opcional)
+  # ============================================================
+  notificar-resultados:
+    name: Notificar Resultados
+    runs-on: ubuntu-latest
+    needs: [registro-asistencias-secundaria, analisis-reportes-secundaria]
+    if: always()
+
+    steps:
+      - name: Resumen de Ejecución
+        run: |
+          echo "================================================"
+          echo "RESUMEN DE EJECUCIÓN"
+          echo "================================================"
+          echo "Job 1 (Registro): ${{ needs.registro-asistencias-secundaria.result }}"
+          echo "Job 2 (Reportes): ${{ needs.analisis-reportes-secundaria.result }}"
+          echo "================================================"
