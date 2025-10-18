@@ -23,7 +23,8 @@ import { obtenerFechasAñoEscolar } from "../../core/databases/queries/RDP02/fec
 import verificarFueraAñoEscolar from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroAñoEscolar";
 import { verificarDentroSemanaGestion } from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroSemanaGestion";
 import { procesarYGuardarAsistenciasDiarias } from "../../core/utils/helpers/processors/procesarYGuadarAsistenciasDiarias";
-import { T_Aulas } from "@prisma/client";
+import { T_Aulas, T_Vacaciones_Interescolares } from "@prisma/client";
+import { normalizarFecha } from "../../core/utils/helpers/formatters/normalizarFechasSinHoras";
 
 // Interfaz para registros de estudiantes desde Redis
 export interface RegistroEstudianteSecundariaRedis {
@@ -151,27 +152,41 @@ async function obtenerRegistrosAsistenciaEstudiantesSecundariaRedis(): Promise<
  */
 function verificarPeriodoEspecial(
   fechaLocal: Date,
-  vacaciones: Array<{ Inicio: Date; Fin: Date }>,
+  vacaciones: T_Vacaciones_Interescolares[],
   semanaGestion: { Inicio: Date; Fin: Date } | null
 ): { esVacaciones: boolean; esSemanaGestion: boolean } {
+  // Normalizar la fecha local (establecer hora a 00:00:00)
+  const fechaLocalNormalizada = normalizarFecha(fechaLocal);
+
   // Verificar vacaciones
   const esVacaciones = vacaciones.some((vacacion) => {
-    return fechaLocal >= vacacion.Inicio && fechaLocal <= vacacion.Fin;
+    const inicioVacaciones = normalizarFecha(new Date(vacacion.Fecha_Inicio));
+    const finVacaciones = normalizarFecha(new Date(vacacion.Fecha_Conclusion));
+
+    return (
+      fechaLocalNormalizada >= inicioVacaciones &&
+      fechaLocalNormalizada <= finVacaciones
+    );
   });
 
   // Verificar semana de gestión
   const esSemanaGestion = semanaGestion
-    ? verificarDentroSemanaGestion(fechaLocal, semanaGestion)
+    ? verificarDentroSemanaGestion(fechaLocalNormalizada, {
+        Inicio: normalizarFecha(semanaGestion.Inicio),
+        Fin: normalizarFecha(semanaGestion.Fin),
+      })
     : false;
 
   return { esVacaciones, esSemanaGestion: Boolean(esSemanaGestion) };
 }
+// Códigos de salida
+const EXIT_CODES = {
+  SUCCESS: 0, // Éxito: Se procesaron asistencias
+  SKIPPED: 2, // Cancelado: Validaciones previas (día evento, vacaciones, etc.)
+  ERROR: 1, // Error: Fallo técnico
+};
 
-/**
- * Función principal del script
- */
 async function main() {
-  // Variables para almacenar datos en memoria
   let estudiantesActivos: EstudianteActivoSecundaria[] = [];
   let registrosFiltrados: RegistroEstudianteSecundariaRedis[] = [];
   let fechaLocalPeru: Date;
@@ -182,10 +197,8 @@ async function main() {
     );
 
     // =================================================================
-    // 🆕 VALIDACIONES PREVIAS - SI ALGUNA FALLA, NO SE EJECUTA NADA
+    // VALIDACIONES PREVIAS
     // =================================================================
-
-    // Obtener fecha actual
     const fechas = obtenerFechasActuales();
     fechaLocalPeru = fechas.fechaLocalPeru;
     console.log(
@@ -194,7 +207,7 @@ async function main() {
 
     console.log("\n🔍 === VALIDACIONES PREVIAS ===");
 
-    // ✅ VALIDACIÓN 1: ¿Es día de evento?
+    // VALIDACIÓN 1: ¿Es día de evento?
     console.log("1️⃣ Verificando si es día de evento...");
     const esDiaEvento = await verificarDiaEvento(fechaLocalPeru);
 
@@ -203,11 +216,13 @@ async function main() {
       console.log(
         "⛔ Script cancelado: No se procesa asistencia en días de evento"
       );
-      return; // ← SALIR COMPLETAMENTE
+      await Promise.all([closePool(), closeClient()]);
+      console.log("🔌 Conexiones cerradas. Finalizando con código SKIPPED...");
+      process.exit(EXIT_CODES.SKIPPED); // ← Código 2: Cancelación válida
     }
     console.log("   ✅ No es día de evento, continuando...");
 
-    // ✅ VALIDACIÓN 2: ¿Estamos fuera del año escolar?
+    // VALIDACIÓN 2: ¿Estamos fuera del año escolar?
     console.log("2️⃣ Verificando si estamos dentro del año escolar...");
     const fechasAñoEscolar = await obtenerFechasAñoEscolar();
     const fueraAñoEscolar = verificarFueraAñoEscolar(
@@ -231,15 +246,16 @@ async function main() {
       console.log(
         "⛔ Script cancelado: No se procesa asistencia fuera del año escolar"
       );
-      return; // ← SALIR COMPLETAMENTE
+      await Promise.all([closePool(), closeClient()]);
+      console.log("🔌 Conexiones cerradas. Finalizando con código SKIPPED...");
+      process.exit(EXIT_CODES.SKIPPED); // ← Código 2: Cancelación válida
     }
     console.log("   ✅ Dentro del año escolar, continuando...");
 
-    // ✅ VALIDACIÓN 3: ¿Estamos en vacaciones interescolares?
+    // VALIDACIÓN 3: ¿Estamos en vacaciones interescolares?
     console.log("3️⃣ Verificando si estamos en vacaciones interescolares...");
     const vacacionesInterescolares = await obtenerVacacionesInterescolares();
     const semanaGestion = await obtenerSemanaDeGestion();
-
     const { esVacaciones, esSemanaGestion } = verificarPeriodoEspecial(
       fechaLocalPeru,
       vacacionesInterescolares,
@@ -251,11 +267,13 @@ async function main() {
       console.log(
         "⛔ Script cancelado: No se procesa asistencia en vacaciones"
       );
-      return; // ← SALIR COMPLETAMENTE
+      await Promise.all([closePool(), closeClient()]);
+      console.log("🔌 Conexiones cerradas. Finalizando con código SKIPPED...");
+      process.exit(EXIT_CODES.SKIPPED); // ← Código 2: Cancelación válida
     }
     console.log("   ✅ No estamos en vacaciones, continuando...");
 
-    // ✅ VALIDACIÓN 4: ¿Estamos en semana de gestión?
+    // VALIDACIÓN 4: ¿Estamos en semana de gestión?
     console.log("4️⃣ Verificando si estamos en semana de gestión...");
 
     if (esSemanaGestion) {
@@ -269,7 +287,9 @@ async function main() {
       console.log(
         "⛔ Script cancelado: No se procesa asistencia en semana de gestión"
       );
-      return; // ← SALIR COMPLETAMENTE
+      await Promise.all([closePool(), closeClient()]);
+      console.log("🔌 Conexiones cerradas. Finalizando con código SKIPPED...");
+      process.exit(EXIT_CODES.SKIPPED); // ← Código 2: Cancelación válida
     }
     console.log("   ✅ No estamos en semana de gestión, continuando...");
 
@@ -280,7 +300,6 @@ async function main() {
     // PROCESAMIENTO NORMAL - Solo se ejecuta si pasó todas las validaciones
     // =================================================================
 
-    // Definir roles a bloquear (solo los que pueden interactuar con estudiantes)
     const rolesABloquear = [
       RolesSistema.Directivo,
       RolesSistema.Auxiliar,
@@ -289,7 +308,6 @@ async function main() {
       RolesSistema.Responsable,
     ];
 
-    // Bloquear roles al inicio
     try {
       await bloquearRoles(rolesABloquear);
       console.log("🔒 Roles bloqueados correctamente");
@@ -306,12 +324,10 @@ async function main() {
         "\n🔄 === FASE 1: Procesamiento de registros Redis de estudiantes de secundaria ==="
       );
 
-      // 1.1 Obtener registros desde Redis
       const registrosRedis =
         await obtenerRegistrosAsistenciaEstudiantesSecundariaRedis();
-
-      // 1.2 Filtrar registros de salida si no está habilitado
       registrosFiltrados = registrosRedis;
+
       if (!CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA) {
         const registrosEntradaOriginales = registrosRedis.filter(
           (r) => r.modoRegistro === ModoRegistro.Entrada
@@ -319,7 +335,6 @@ async function main() {
         const registrosSalidaOriginales = registrosRedis.filter(
           (r) => r.modoRegistro === ModoRegistro.Salida
         ).length;
-
         registrosFiltrados = registrosRedis.filter(
           (r) => r.modoRegistro === ModoRegistro.Entrada
         );
@@ -332,16 +347,13 @@ async function main() {
         );
       }
 
-      // 1.3 Persistir registros en MongoDB
       if (registrosFiltrados.length > 0) {
         console.log(
           `🔄 Procesando ${registrosFiltrados.length} registros de estudiantes de secundaria...`
         );
-
         await registrarAsistenciasEstudiantesSecundariaDesdeRedis(
           registrosFiltrados
         );
-
         console.log("✅ Registros de Redis procesados correctamente");
       } else {
         console.log(
@@ -349,25 +361,22 @@ async function main() {
         );
       }
 
-      // FASE 2: Registrar faltas para estudiantes sin registro
+      // FASE 2: Registrar faltas
       console.log(
         "\n📋 === FASE 2: Registrar faltas de estudiantes de secundaria ==="
       );
 
-      // 2.1 Obtener estudiantes activos de secundaria
       estudiantesActivos = await obtenerEstudiantesActivosSecundaria();
       console.log(
         `👥 Estudiantes activos de secundaria encontrados: ${estudiantesActivos.length}`
       );
 
-      // 2.2 Registrar faltas
       const resultado = await registrarFaltasEstudiantesSecundaria(
         estudiantesActivos,
         registrosFiltrados,
         fechaLocalPeru
       );
 
-      // 2.3 Mostrar resultados
       console.log("\n📊 === Resultados de registro de faltas ===");
       console.log(
         `👥 Total estudiantes activos procesados: ${estudiantesActivos.length}`
@@ -383,23 +392,9 @@ async function main() {
       }
 
       console.log(
-        `❌ Estudiantes con faltas de entrada: ${resultado.estudiantesSinEntrada.length}`
-      );
-
-      if (
-        CONTROL_ASISTENCIA_DE_SALIDA_SECUNDARIA &&
-        resultado.estudiantesSinSalida
-      ) {
-        console.log(
-          `❌ Estudiantes con faltas de salida: ${resultado.estudiantesSinSalida.length}`
-        );
-      }
-
-      console.log(
         "\n🎉 Proceso de asistencias de estudiantes de secundaria completado exitosamente"
       );
     } finally {
-      // Desbloquear roles
       try {
         await desbloquearRoles(rolesABloquear);
         console.log("🔓 Roles desbloqueados correctamente");
@@ -408,10 +403,7 @@ async function main() {
       }
     }
 
-    // =================================================================
     // FASE 3: Procesar y guardar archivo de asistencias diarias
-    // IMPORTANTE: Esto se hace DESPUÉS de desbloquear roles
-    // =================================================================
     console.log(
       "\n📦 === FASE 3: Procesar y guardar archivo de asistencias diarias ==="
     );
@@ -428,16 +420,19 @@ async function main() {
         "❌ Error procesando archivo de asistencias diarias:",
         error
       );
-      // No lanzamos el error para que el script pueda finalizar correctamente
     }
 
     console.log("\n✅ === PROCESO COMPLETO FINALIZADO EXITOSAMENTE ===");
+
+    // ← Éxito real: Se procesaron asistencias
+    process.exit(EXIT_CODES.SUCCESS);
   } catch (error) {
     console.error(
       "❌ Error en procesamiento de asistencias de estudiantes de secundaria:",
       error
     );
-    process.exit(1);
+    await Promise.all([closePool(), closeClient()]).catch(() => {});
+    process.exit(EXIT_CODES.ERROR); // ← Código 1: Error técnico
   } finally {
     try {
       await Promise.all([closePool(), closeClient()]);
@@ -445,7 +440,6 @@ async function main() {
     } catch (closeError) {
       console.error("❌ Error al cerrar conexiones:", closeError);
     }
-    process.exit(0);
   }
 }
 

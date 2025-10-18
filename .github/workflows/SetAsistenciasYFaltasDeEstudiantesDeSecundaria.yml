@@ -31,7 +31,8 @@ jobs:
     if: ${{ !inputs.skip_script1 }}
 
     outputs:
-      success: ${{ steps.execution.outputs.success }}
+      execution_result: ${{ steps.execution.outputs.result }}
+      should_continue: ${{ steps.execution.outputs.should_continue }}
 
     steps:
       - name: Checkout del repositorio
@@ -48,13 +49,34 @@ jobs:
 
       - name: Ejecutar Script 1 - Registro de Asistencias
         id: execution
+        # Usamos 'continue-on-error: true' para capturar el código de salida
+        continue-on-error: true
         run: |
           echo "🚀 Ejecutando registro de asistencias..."
-          npx ts-node ./src/jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria.ts
 
-          # Si el script se ejecutó exitosamente, marcar como success
-          echo "success=true" >> $GITHUB_OUTPUT
-          echo "✅ Script 1 completado exitosamente"
+          # Ejecutar el script y capturar el código de salida
+          npx ts-node ./src/jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria.ts
+          EXIT_CODE=$?
+
+          echo "📋 Código de salida: $EXIT_CODE"
+
+          # Evaluar el código de salida
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Script completado exitosamente - Se procesaron asistencias"
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "should_continue=true" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "⏭️ Script cancelado - Validaciones previas (día evento, vacaciones, etc.)"
+            echo "result=skipped" >> $GITHUB_OUTPUT
+            echo "should_continue=false" >> $GITHUB_OUTPUT
+            exit 0  # No es un error, simplemente se saltó
+          else
+            echo "❌ Script falló con error técnico"
+            echo "result=error" >> $GITHUB_OUTPUT
+            echo "should_continue=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
         env:
           RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
           RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
@@ -77,20 +99,47 @@ jobs:
           RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
           ENTORNO: ${{ secrets.ENTORNO }}
 
+      - name: Mostrar resultado de ejecución
+        run: |
+          echo "================================================"
+          echo "RESULTADO DE EJECUCIÓN - SCRIPT 1"
+          echo "================================================"
+          echo "Resultado: ${{ steps.execution.outputs.result }}"
+          echo "Continuar con Script 2: ${{ steps.execution.outputs.should_continue }}"
+          echo "================================================"
+
   # ============================================================
   # JOB 2: Análisis y Envío de Reportes
   # ============================================================
   analisis-reportes-secundaria:
     name: Análisis y Reportes Secundaria
     runs-on: ubuntu-latest
-    # Solo ejecutar si el Job 1 fue exitoso O si se pidió omitir el Job 1
+    # Solo ejecutar si:
+    # 1. Se omitió el Job 1 (inputs.skip_script1 = true), O
+    # 2. El Job 1 se ejecutó exitosamente (should_continue = true)
+    # Y además:
+    # 3. No se pidió omitir el Job 2 (inputs.skip_script2 = false)
     needs: [registro-asistencias-secundaria]
     if: |
-      always() && 
-      (needs.registro-asistencias-secundaria.outputs.success == 'true' || inputs.skip_script1) &&
-      !inputs.skip_script2
+      !inputs.skip_script2 && (
+        inputs.skip_script1 || 
+        needs.registro-asistencias-secundaria.outputs.should_continue == 'true'
+      )
 
     steps:
+      - name: Mostrar razón de ejecución
+        run: |
+          echo "================================================"
+          echo "INICIO SCRIPT 2 - ANÁLISIS Y REPORTES"
+          echo "================================================"
+          if [ "${{ inputs.skip_script1 }}" == "true" ]; then
+            echo "Razón: Script 1 fue omitido manualmente"
+          elif [ "${{ needs.registro-asistencias-secundaria.outputs.should_continue }}" == "true" ]; then
+            echo "Razón: Script 1 completado exitosamente"
+            echo "Resultado anterior: ${{ needs.registro-asistencias-secundaria.outputs.execution_result }}"
+          fi
+          echo "================================================"
+
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
@@ -130,7 +179,7 @@ jobs:
           ENTORNO: ${{ secrets.ENTORNO }}
 
   # ============================================================
-  # JOB 3: Notificación de Resultados (Opcional)
+  # JOB 3: Notificación de Resultados
   # ============================================================
   notificar-resultados:
     name: Notificar Resultados
@@ -142,8 +191,37 @@ jobs:
       - name: Resumen de Ejecución
         run: |
           echo "================================================"
-          echo "RESUMEN DE EJECUCIÓN"
+          echo "RESUMEN DE EJECUCIÓN COMPLETA"
           echo "================================================"
-          echo "Job 1 (Registro): ${{ needs.registro-asistencias-secundaria.result }}"
-          echo "Job 2 (Reportes): ${{ needs.analisis-reportes-secundaria.result }}"
+
+          # Job 1
+          echo ""
+          echo "📋 JOB 1 - Registro de Asistencias:"
+          if [ "${{ inputs.skip_script1 }}" == "true" ]; then
+            echo "   Status: ⏭️ Omitido manualmente"
+          else
+            echo "   Status: ${{ needs.registro-asistencias-secundaria.result }}"
+            echo "   Resultado: ${{ needs.registro-asistencias-secundaria.outputs.execution_result }}"
+            
+            if [ "${{ needs.registro-asistencias-secundaria.outputs.execution_result }}" == "success" ]; then
+              echo "   ✅ Se procesaron asistencias correctamente"
+            elif [ "${{ needs.registro-asistencias-secundaria.outputs.execution_result }}" == "skipped" ]; then
+              echo "   ⏭️ Cancelado por validaciones (día evento/vacaciones/etc.)"
+            elif [ "${{ needs.registro-asistencias-secundaria.outputs.execution_result }}" == "error" ]; then
+              echo "   ❌ Falló con error técnico"
+            fi
+          fi
+
+          # Job 2
+          echo ""
+          echo "📊 JOB 2 - Análisis y Reportes:"
+          if [ "${{ inputs.skip_script2 }}" == "true" ]; then
+            echo "   Status: ⏭️ Omitido manualmente"
+          elif [ "${{ needs.analisis-reportes-secundaria.result }}" == "skipped" ]; then
+            echo "   Status: ⏭️ Omitido (Job 1 no se completó exitosamente)"
+          else
+            echo "   Status: ${{ needs.analisis-reportes-secundaria.result }}"
+          fi
+
+          echo ""
           echo "================================================"
