@@ -1,11 +1,10 @@
 import { ArchivoAsistenciaEscolarDiaria } from "../../../../interfaces/shared/Asistencia/ArchivoAsistenciaEscolarDiaria";
+import { ModoRegistro } from "../../../../interfaces/shared/ModoRegistroPersonal";
 import { NivelEducativo } from "../../../../interfaces/shared/NivelEducativo";
 import { obtenerDatosEstudiantesYAulasDesdeGoogleDrive } from "../../../databases/queries/RDP01/obtenerDatosEstudiantesYAulasDesdeGoogleDrive";
 import { ConfiguracionesReportes } from "../../../databases/queries/RDP02/ajustes-generales/obtenerConfiguracionesReportesEscolares";
 import { descargarArchivoJSONDesdeGoogleDrive } from "../../../external/google/drive/descargarArchivoJSONDesdeGoogle";
 import { ArchivoAsistenciaEscolarReciente } from "../verificators/verificarArchivosAsistenciaEscolarDisponibles";
-
-
 
 export interface EstudianteConProblema {
   idEstudiante: string;
@@ -99,7 +98,7 @@ export async function analizarAsistenciasEscolaresConsecutivas(
             const asistencia = ListaAsistenciasEscolares[idEstudiante];
 
             // Obtener el registro de entrada (key "E")
-            const entrada = asistencia["E"];
+            const entrada = asistencia[ModoRegistro.Entrada];
 
             // CASO 1: El estudiante NO VINO (falta)
             // Si DesfaseSegundos es null, significa que no asistió

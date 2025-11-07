@@ -156,6 +156,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
 
     // IMPORTANTE: Siempre obtenemos SOLO profesores que tienen cursos para ese día,
     // independientemente de si estamos en período especial o no
+    // AHORA INCLUIMOS información del aula asignada
     const profesoresQuery = `
       SELECT 
         ps."Id_Profesor_Secundaria", 
@@ -164,11 +165,17 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         ps."Genero", 
         ps."Google_Drive_Foto_ID",
         MIN(ch."Indice_Hora_Academica_Inicio") as "Indice_Entrada",
-        MAX(ch."Indice_Hora_Academica_Inicio" + ch."Cant_Hora_Academicas") as "Indice_Salida"
+        MAX(ch."Indice_Hora_Academica_Inicio" + ch."Cant_Hora_Academicas") as "Indice_Salida",
+        a."Id_Aula",
+        a."Color",
+        a."Grado",
+        a."Nivel",
+        a."Seccion"
       FROM "T_Profesores_Secundaria" ps
       JOIN "T_Cursos_Horario" ch ON ps."Id_Profesor_Secundaria" = ch."Id_Profesor_Secundaria"
+      LEFT JOIN "T_Aulas" a ON ps."Id_Profesor_Secundaria" = a."Id_Profesor_Secundaria"
       WHERE ps."Estado" = true AND ch."Dia_Semana" = $1
-      GROUP BY ps."Id_Profesor_Secundaria", ps."Nombres", ps."Apellidos", ps."Genero", ps."Google_Drive_Foto_ID"
+      GROUP BY ps."Id_Profesor_Secundaria", ps."Nombres", ps."Apellidos", ps."Genero", ps."Google_Drive_Foto_ID", a."Id_Aula", a."Color", a."Grado", a."Nivel", a."Seccion"
     `;
 
     const profesoresResult = await RDP02_DB_INSTANCES.query(profesoresQuery, [
@@ -268,6 +275,15 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
         Hora_Entrada_Dia_Actual: horaEntradaISO,
         Hora_Salida_Dia_Actual: horaSalidaISO,
+        Aula: profesor.Id_Aula
+          ? {
+              Id_Aula: profesor.Id_Aula,
+              Color: profesor.Color,
+              Grado: profesor.Grado,
+              Nivel: profesor.Nivel,
+              Seccion: profesor.Seccion,
+            }
+          : null,
         _periodoEspecial: periodoTipo,
       }));
     }
@@ -380,6 +396,15 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
           Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
           Hora_Entrada_Dia_Actual: horaEntrada,
           Hora_Salida_Dia_Actual: horaSalida,
+          Aula: profesor.Id_Aula
+            ? {
+                Id_Aula: profesor.Id_Aula,
+                Color: profesor.Color,
+                Grado: profesor.Grado,
+                Nivel: profesor.Nivel,
+                Seccion: profesor.Seccion,
+              }
+            : null,
         };
       } catch (error) {
         console.error(
@@ -402,6 +427,15 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
           Google_Drive_Foto_ID: profesor.Google_Drive_Foto_ID,
           Hora_Entrada_Dia_Actual: horaInicioDefault,
           Hora_Salida_Dia_Actual: horaFinDefault,
+          Aula: profesor.Id_Aula
+            ? {
+                Id_Aula: profesor.Id_Aula,
+                Color: profesor.Color,
+                Grado: profesor.Grado,
+                Nivel: profesor.Nivel,
+                Seccion: profesor.Seccion,
+              }
+            : null,
           _error:
             "Error calculando horarios: " +
             (error instanceof Error ? error.message : String(error)),

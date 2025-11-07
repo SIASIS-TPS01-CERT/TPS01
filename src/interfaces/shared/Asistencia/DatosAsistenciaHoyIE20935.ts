@@ -1,6 +1,7 @@
 import { NivelEducativo } from "../NivelEducativo";
 
 import {
+  T_Aulas,
   T_Auxiliares,
   T_Comunicados,
   T_Directivos,
@@ -54,7 +55,12 @@ export type ProfesoresPrimariaParaTomaDeAsistencia = Pick<
   | "Nombres"
   | "Apellidos"
   | "Google_Drive_Foto_ID"
->;
+> & {
+  Aula: Pick<
+    T_Aulas,
+    "Id_Aula" | "Color" | "Grado" | "Nivel" | "Seccion"
+  > | null;
+};
 
 export type ProfesorTutorSecundariaParaTomaDeAsistencia = Pick<
   T_Profesores_Secundaria,
@@ -66,6 +72,10 @@ export type ProfesorTutorSecundariaParaTomaDeAsistencia = Pick<
 > & {
   Hora_Entrada_Dia_Actual: Date;
   Hora_Salida_Dia_Actual: Date;
+  Aula: Pick<
+    T_Aulas,
+    "Id_Aula" | "Color" | "Grado" | "Nivel" | "Seccion"
+  > | null;
 };
 
 export type AuxiliaresParaTomaDeAsistencia = Pick<
