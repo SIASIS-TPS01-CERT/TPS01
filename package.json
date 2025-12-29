@@ -24,7 +24,7 @@
     "mongodb": "^6.18.0",
     "nodemailer": "^7.0.9",
     "pg": "^8.14.1",
-    "prisma": "^6.5.0"
+    "prisma": "^6.19.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

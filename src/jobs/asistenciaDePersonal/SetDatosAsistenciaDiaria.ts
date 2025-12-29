@@ -24,6 +24,8 @@ import { obtenerDirectivosParaTomarAsistencia } from "../../core/databases/queri
 import { NOMBRE_ARCHIVO_CON_DATOS_ASISTENCIA_DIARIOS } from "../../constants/NOMBRE_ARCHIVOS_SISTEMA";
 import verificarFueraAñoEscolar from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroAñoEscolar";
 import { verificarDentroSemanaGestion } from "../../core/databases/queries/RDP02/fechas-importantes/verificarDentroSemanaGestion";
+import { desbloquearRoles } from "../../core/databases/queries/RDP02/bloqueo-roles/desbloquearRoles";
+import { RolesSistema } from "../../interfaces/shared/RolesSistema";
 
 async function generarDatosAsistenciaDiaria(): Promise<DatosAsistenciaHoyIE20935> {
   // Obtener fechas actuales
@@ -157,6 +159,16 @@ async function main() {
         inactiveError
       );
     }
+
+    await desbloquearRoles([
+      RolesSistema.Directivo,
+      RolesSistema.Auxiliar,
+      RolesSistema.PersonalAdministrativo,
+      RolesSistema.ProfesorPrimaria,
+      RolesSistema.ProfesorSecundaria,
+      RolesSistema.Tutor,
+      RolesSistema.Responsable,
+    ]);
 
     // Imprimir en consola para verificación
     console.log(JSON.stringify(datosAsistencia, null, 2));
