@@ -72,14 +72,14 @@ export async function obtenerConfiguracionesReportesEscolares(
     // Obtener hora de inicio de clases
     const sqlHorario = `
       SELECT "Valor"
-      FROM "T_Horarios_Asistencia"
+      FROM "T_Horarios_Generales"
       WHERE "Nombre" = $1
     `;
 
     const nombreHorario =
       nivel === NivelEducativo.SECUNDARIA
-        ? "Hora_Inicio_Asistencia_Secundaria"
-        : "Hora_Inicio_Asistencia_Primaria";
+        ? "Inicio_Horario_Escolar_Secundaria"
+        : "Inicio_Horario_Escolar_Primaria";
 
     const resultHorario = await RDP02_DB_INSTANCES.query(sqlHorario, [
       nombreHorario,

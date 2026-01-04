@@ -326,14 +326,14 @@ model T_Ajustes_Generales_Sistema {
   @@map("T_Ajustes_Generales_Sistema")
 }
 
-model T_Horarios_Asistencia {
+model T_Horarios_Generales {
   Id_Horario          Int      @id @default(autoincrement())
   Nombre              String   @unique @db.VarChar(100)
   Valor               DateTime @db.Time
   Descripcion         String   @db.Text
   Ultima_Modificacion DateTime @default(now())
 
-  @@map("T_Horarios_Asistencia")
+  @@map("T_Horarios_Generales")
 }
 
 model T_Eventos {

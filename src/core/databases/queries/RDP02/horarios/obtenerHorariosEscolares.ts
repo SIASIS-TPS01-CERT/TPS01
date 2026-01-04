@@ -8,8 +8,7 @@ import {
 import RDP02_DB_INSTANCES from "../../../connectors/postgres";
 
 export async function obtenerHorariosEscolares(
-  fechaActual: Date,
-  
+  fechaActual: Date
 ): Promise<Record<NivelEducativo, HorarioTomaAsistencia>> {
   console.log(
     "obtenerHorariosEscolares - Utilizando fecha:",
@@ -25,12 +24,12 @@ export async function obtenerHorariosEscolares(
   try {
     const sql = `
       SELECT "Nombre", "Valor", "Descripcion"
-      FROM "T_Horarios_Asistencia"
+      FROM "T_Horarios_Generales"
       WHERE "Nombre" IN (
-        'Hora_Inicio_Asistencia_Primaria',
-        'Hora_Final_Asistencia_Primaria',
-        'Hora_Inicio_Asistencia_Secundaria',
-        'Hora_Final_Asistencia_Secundaria'
+        'Inicio_Horario_Escolar_Primaria',
+        'Fin_Horario_Escolar_Primaria',
+        'Inicio_Horario_Escolar_Secundaria',
+        'Fin_Horario_Escolar_Secundaria'
       )
     `;
 
@@ -56,10 +55,10 @@ export async function obtenerHorariosEscolares(
 
     // Verificar que tenemos todas las horas necesarias
     const horasRequeridas = [
-      "Hora_Inicio_Asistencia_Primaria",
-      "Hora_Final_Asistencia_Primaria",
-      "Hora_Inicio_Asistencia_Secundaria",
-      "Hora_Final_Asistencia_Secundaria",
+      "Inicio_Horario_Escolar_Primaria",
+      "Fin_Horario_Escolar_Primaria",
+      "Inicio_Horario_Escolar_Secundaria",
+      "Fin_Horario_Escolar_Secundaria",
     ];
 
     // Proporcionar valores predeterminados para horas faltantes
@@ -86,19 +85,19 @@ export async function obtenerHorariosEscolares(
     // Crear objetos Date a partir de las horas extraídas y la fecha actual
     const horaInicioPrimaria = crearFechaConHora(
       fechaActual,
-      horariosStr["Hora_Inicio_Asistencia_Primaria"]
+      horariosStr["Inicio_Horario_Escolar_Primaria"]
     );
     const horaFinPrimaria = crearFechaConHora(
       fechaActual,
-      horariosStr["Hora_Final_Asistencia_Primaria"]
+      horariosStr["Fin_Horario_Escolar_Primaria"]
     );
     const horaInicioSecundaria = crearFechaConHora(
       fechaActual,
-      horariosStr["Hora_Inicio_Asistencia_Secundaria"]
+      horariosStr["Inicio_Horario_Escolar_Secundaria"]
     );
     const horaFinSecundaria = crearFechaConHora(
       fechaActual,
-      horariosStr["Hora_Final_Asistencia_Secundaria"]
+      horariosStr["Fin_Horario_Escolar_Secundaria"]
     );
 
     console.log("Horarios escolares generados:");

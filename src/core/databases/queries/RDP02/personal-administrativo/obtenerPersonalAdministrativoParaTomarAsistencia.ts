@@ -69,7 +69,7 @@ export async function obtenerPersonalAdministrativoParaTomarAsistencia(
         SELECT 
           "Nombre", "Valor"
         FROM 
-          "T_Horarios_Asistencia"
+          "T_Horarios_Generales"
         WHERE 
           "Nombre" IN (
             'Inicio_Horario_Laboral_Para_Personal_General_${periodoTipo}',

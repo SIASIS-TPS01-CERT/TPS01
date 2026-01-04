@@ -48,7 +48,7 @@ export enum TablasRemoto {
 
   // Configuración y sistema
   Tabla_Fechas_Importantes = "T_Fechas_Importantes",
-  Tabla_Horarios_Asistencia = "T_Horarios_Asistencia",
+  Tabla_Horarios_Generales = "T_Horarios_Generales",
   Tabla_Ajustes_Sistema = "T_Ajustes_Generales_Sistema",
   Tabla_Bloqueo_Roles = "T_Bloqueo_Roles",
   Tabla_Registro_Fallos = "T_Registro_Fallos_Sistema",
@@ -108,7 +108,7 @@ export enum TablasLocal {
 
   // Configuración y sistema
   Tabla_Fechas_Importantes = "fechas_importantes",
-  Tabla_Horarios_Asistencia = "horarios_asistencia",
+  Tabla_Horarios_Generales = "horarios_asistencia",
   Tabla_Ajustes_Sistema = "ajustes_generales_sistema",
   Tabla_Bloqueo_Roles = "bloqueo_roles",
   Tabla_Registro_Fallos = "registro_fallos_sistema",
@@ -352,8 +352,8 @@ export const TablasSistema = {
     sincronizable: true,
   },
   HORARIOS_ASISTENCIA: {
-    nombreRemoto: TablasRemoto.Tabla_Horarios_Asistencia,
-    nombreLocal: TablasLocal.Tabla_Horarios_Asistencia,
+    nombreRemoto: TablasRemoto.Tabla_Horarios_Generales,
+    nombreLocal: TablasLocal.Tabla_Horarios_Generales,
     descripcion: "Configuración de horarios para toma de asistencia",
     sincronizable: true,
   },

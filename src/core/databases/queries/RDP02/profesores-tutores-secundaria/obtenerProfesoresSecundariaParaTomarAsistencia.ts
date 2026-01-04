@@ -209,7 +209,7 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
         SELECT 
           "Nombre", "Valor"
         FROM 
-          "T_Horarios_Asistencia"
+          "T_Horarios_Generales"
         WHERE 
           "Nombre" IN (
             'Inicio_Horario_Laboral_Para_Personal_General_${periodoTipo}',
@@ -319,8 +319,8 @@ export async function obtenerProfesoresSecundariaParaTomarAsistencia(
     // 2. Obtener la hora de inicio del horario escolar secundaria
     const horariosQuery = `
       SELECT "Valor" 
-      FROM "T_Horarios_Asistencia" 
-      WHERE "Nombre" = 'Hora_Inicio_Asistencia_Secundaria'
+      FROM "T_Horarios_Generales" 
+      WHERE "Nombre" = 'Inicio_Horario_Escolar_Secundaria'
     `;
 
     const horariosResult = await RDP02_DB_INSTANCES.query(horariosQuery);

@@ -114,7 +114,7 @@ export async function obtenerHorariosGenerales(
         SELECT 
           "Nombre", "Valor"
         FROM 
-          "T_Horarios_Asistencia"
+          "T_Horarios_Generales"
         WHERE 
           "Nombre" IN (
             '${nombresHorarios[0]}',
@@ -192,13 +192,13 @@ export async function obtenerHorariosGenerales(
       SELECT 
         "Nombre", "Valor"
       FROM 
-        "T_Horarios_Asistencia"
+        "T_Horarios_Generales"
       WHERE 
         "Nombre" IN (
-          'Hora_Inicio_Asistencia_Primaria',
-          'Hora_Final_Asistencia_Primaria',
-          'Hora_Inicio_Asistencia_Secundaria',
-          'Hora_Final_Asistencia_Secundaria',
+          'Inicio_Horario_Escolar_Primaria',
+          'Fin_Horario_Escolar_Primaria',
+          'Inicio_Horario_Escolar_Secundaria',
+          'Fin_Horario_Escolar_Secundaria',
           'Inicio_Horario_Laboral_Profesores_Primaria',
           'Fin_Horario_Laboral_Profesores_Primaria',
           'Inicio_Horario_Laboral_Auxiliar',
@@ -245,16 +245,16 @@ export async function obtenerHorariosGenerales(
 
         // Asignar según nombre exacto
         switch (row.Nombre) {
-          case "Hora_Inicio_Asistencia_Primaria":
+          case "Inicio_Horario_Escolar_Primaria":
             horariosExtraidos.horaPrimaria.inicio = horaStr;
             break;
-          case "Hora_Final_Asistencia_Primaria":
+          case "Fin_Horario_Escolar_Primaria":
             horariosExtraidos.horaPrimaria.fin = horaStr;
             break;
-          case "Hora_Inicio_Asistencia_Secundaria":
+          case "Inicio_Horario_Escolar_Secundaria":
             horariosExtraidos.horaSecundaria.inicio = horaStr;
             break;
-          case "Hora_Final_Asistencia_Secundaria":
+          case "Fin_Horario_Escolar_Secundaria":
             horariosExtraidos.horaSecundaria.fin = horaStr;
             break;
           case "Inicio_Horario_Laboral_Profesores_Primaria":
