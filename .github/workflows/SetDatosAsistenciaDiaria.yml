@@ -2,15 +2,10 @@ name: Ejecutar Script de Datos para toma de Asistencia Diaria
 
 on:
   schedule:
-    # Ejecutar a las 4:00 AM hora de Perú (UTC-5) de lunes a viernes /Se retrocedio una hora, debido a posibles retrasos que podrian suceder en la ejecución
+    # Ejecutar a las 4:00 AM hora de Perú (UTC-5) de lunes a viernes
     # En GitHub Actions se usa UTC, por lo que 4:00 AM en Perú es 09:00 AM UTC
     # Solo en meses de marzo (3) a diciembre (12)
     - cron: "0 9 * 3-12 1-5"
-
-  # Añadido: Trigger para ejecutar en push a master
-  # push:
-  #   branches:
-  #     - master
 
   # Permite la ejecución manual para pruebas
   workflow_dispatch:
@@ -19,6 +14,30 @@ jobs:
   ejecutar-script-asistencia:
     runs-on: ubuntu-latest
 
+    # Mover el env aquí permite que Prisma lo vea durante el 'npm install'
+    env:
+      RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
+      RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
+      RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
+      RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
+      RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
+      RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN }}
+      RDP04_VERCEL_BLOB_INS2_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS2_READ_WRITE_TOKEN }}
+      RDP04_VERCEL_BLOB_INS3_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS3_READ_WRITE_TOKEN }}
+      RDP04_VERCEL_BLOB_INS4_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS4_READ_WRITE_TOKEN }}
+      RDP04_VERCEL_BLOB_INS5_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS5_READ_WRITE_TOKEN }}
+      RDP05_INS1_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS1_REDIS_BD_BASE_URL_API }}
+      RDP05_INS1_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS1_REDIS_BD_TOKEN_FOR_API }}
+      RDP05_INS2_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS2_REDIS_BD_BASE_URL_API }}
+      RDP05_INS2_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS2_REDIS_BD_TOKEN_FOR_API }}
+      RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
+      RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
+      SE01_SIASIS_EMAIL_USER: ${{ secrets.SE01_SIASIS_EMAIL_USER }}
+      SE01_SIASIS_EMAIL_APPLICATION_PASSWORD: ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
+      ENTORNO: ${{ secrets.ENTORNO }}
+
     steps:
       - name: Checkout del repositorio
         uses: actions/checkout@v4
@@ -26,35 +45,14 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22" # Versión compatible con Prisma 7.x
           cache: "npm"
 
       - name: Instalar dependencias
+        # Al estar en el nivel superior, 'npm install' ya tiene acceso a DATABASE_URL
         run: npm install
 
       - name: Ejecutar script con ts-node
         run: |
-          echo "Ejecutando script..."
+          echo "Iniciando ejecución de script..."
           npx ts-node ./src/jobs/asistenciaDePersonal/SetDatosAsistenciaDiaria.ts
-        env:
-          RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
-          RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
-          RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
-          RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
-          RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
-          RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN }}
-          RDP04_VERCEL_BLOB_INS2_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS2_READ_WRITE_TOKEN }}
-          RDP04_VERCEL_BLOB_INS3_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS3_READ_WRITE_TOKEN }}
-          RDP04_VERCEL_BLOB_INS4_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS4_READ_WRITE_TOKEN }}
-          RDP04_VERCEL_BLOB_INS5_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS5_READ_WRITE_TOKEN }}
-          RDP05_INS1_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS1_REDIS_BD_BASE_URL_API }}
-          RDP05_INS1_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS1_REDIS_BD_TOKEN_FOR_API }}
-          RDP05_INS2_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS2_REDIS_BD_BASE_URL_API }}
-          RDP05_INS2_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS2_REDIS_BD_TOKEN_FOR_API }}
-          RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
-          RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
-          SE01_SIASIS_EMAIL_USER: ${{ secrets.SE01_SIASIS_EMAIL_USER }}
-          SE01_SIASIS_EMAIL_APPLICATION_PASSWORD: ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
-          ENTORNO: ${{ secrets.ENTORNO }}
