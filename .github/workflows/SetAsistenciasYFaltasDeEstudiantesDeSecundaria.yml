@@ -3,7 +3,6 @@ name: Procesamiento Completo de Asistencias Secundaria
 on:
   schedule:
     # Ejecutar a las 7:45 PM hora de Perú (UTC-5) = 00:45 UTC del día siguiente
-    # Solo de marzo a diciembre, martes a sábado
     - cron: "45 0 * 3-12 2-6"
 
   # Permite ejecución manual
@@ -27,12 +26,34 @@ jobs:
   registro-asistencias-secundaria:
     name: Registro de Asistencias Secundaria
     runs-on: ubuntu-latest
-    # Solo ejecutar si no se pidió omitir
     if: ${{ !inputs.skip_script1 }}
 
     outputs:
       execution_result: ${{ steps.execution.outputs.result }}
       should_continue: ${{ steps.execution.outputs.should_continue }}
+
+    # Definimos las variables para el Job 1
+    env:
+      RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
+      RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
+      RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
+      RDP03_INS1_DATABASE_URL: ${{ secrets.RDP03_INS1_DATABASE_URL }}
+      RDP03_INS2_DATABASE_URL: ${{ secrets.RDP03_INS2_DATABASE_URL }}
+      RDP03_INS3_DATABASE_URL: ${{ secrets.RDP03_INS3_DATABASE_URL }}
+      RDP03_INS4_DATABASE_URL: ${{ secrets.RDP03_INS4_DATABASE_URL }}
+      RDP03_INS5_DATABASE_URL: ${{ secrets.RDP03_INS5_DATABASE_URL }}
+      RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
+      RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
+      RDP05_INS1_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS1_REDIS_BD_BASE_URL_API }}
+      RDP05_INS1_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS1_REDIS_BD_TOKEN_FOR_API }}
+      RDP05_INS2_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS2_REDIS_BD_BASE_URL_API }}
+      RDP05_INS2_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS2_REDIS_BD_TOKEN_FOR_API }}
+      RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
+      RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
+      ENTORNO: ${{ secrets.ENTORNO }}
 
     steps:
       - name: Checkout del repositorio
@@ -45,68 +66,36 @@ jobs:
           cache: "npm"
 
       - name: Instalar dependencias
-        run: npm install
+        run: npm install --ignore-scripts
+
+      - name: Generar Prisma Client
+        run: npx prisma generate
 
       - name: Ejecutar Script 1 - Registro de Asistencias
         id: execution
-        # Usamos 'continue-on-error: true' para capturar el código de salida
         continue-on-error: true
         run: |
           echo "🚀 Ejecutando registro de asistencias..."
-
-          # Ejecutar el script y capturar el código de salida
           npx ts-node ./src/jobs/asistenciaEscolar/SetAsistenciasYFaltasEstudiantesSecundaria.ts
           EXIT_CODE=$?
-
           echo "📋 Código de salida: $EXIT_CODE"
 
-          # Evaluar el código de salida
           if [ $EXIT_CODE -eq 0 ]; then
-            echo "✅ Script completado exitosamente - Se procesaron asistencias"
+            echo "✅ Script completado exitosamente"
             echo "result=success" >> $GITHUB_OUTPUT
             echo "should_continue=true" >> $GITHUB_OUTPUT
             exit 0
           elif [ $EXIT_CODE -eq 2 ]; then
-            echo "⏭️ Script cancelado - Validaciones previas (día evento, vacaciones, etc.)"
+            echo "⏭️ Script cancelado - Validaciones previas"
             echo "result=skipped" >> $GITHUB_OUTPUT
             echo "should_continue=false" >> $GITHUB_OUTPUT
-            exit 0  # No es un error, simplemente se saltó
+            exit 0
           else
             echo "❌ Script falló con error técnico"
             echo "result=error" >> $GITHUB_OUTPUT
             echo "should_continue=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-        env:
-          RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
-          RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
-          RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
-          RDP03_INS1_DATABASE_URL: ${{ secrets.RDP03_INS1_DATABASE_URL }}
-          RDP03_INS2_DATABASE_URL: ${{ secrets.RDP03_INS2_DATABASE_URL }}
-          RDP03_INS3_DATABASE_URL: ${{ secrets.RDP03_INS3_DATABASE_URL }}
-          RDP03_INS4_DATABASE_URL: ${{ secrets.RDP03_INS4_DATABASE_URL }}
-          RDP03_INS5_DATABASE_URL: ${{ secrets.RDP03_INS5_DATABASE_URL }}
-          RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN: ${{ secrets.RDP04_VERCEL_BLOB_INS1_READ_WRITE_TOKEN }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
-          RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
-          RDP05_INS1_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS1_REDIS_BD_BASE_URL_API }}
-          RDP05_INS1_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS1_REDIS_BD_TOKEN_FOR_API }}
-          RDP05_INS2_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS2_REDIS_BD_BASE_URL_API }}
-          RDP05_INS2_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS2_REDIS_BD_TOKEN_FOR_API }}
-          RDP05_INS3_REDIS_BD_BASE_URL_API: ${{ secrets.RDP05_INS3_REDIS_BD_BASE_URL_API }}
-          RDP05_INS3_REDIS_BD_TOKEN_FOR_API: ${{ secrets.RDP05_INS3_REDIS_BD_TOKEN_FOR_API }}
-          ENTORNO: ${{ secrets.ENTORNO }}
-
-      - name: Mostrar resultado de ejecución
-        run: |
-          echo "================================================"
-          echo "RESULTADO DE EJECUCIÓN - SCRIPT 1"
-          echo "================================================"
-          echo "Resultado: ${{ steps.execution.outputs.result }}"
-          echo "Continuar con Script 2: ${{ steps.execution.outputs.should_continue }}"
-          echo "================================================"
 
   # ============================================================
   # JOB 2: Análisis y Envío de Reportes
@@ -114,32 +103,33 @@ jobs:
   analisis-reportes-secundaria:
     name: Análisis y Reportes Secundaria
     runs-on: ubuntu-latest
-    # Solo ejecutar si:
-    # 1. Se omitió el Job 1 (inputs.skip_script1 = true), O
-    # 2. El Job 1 se ejecutó exitosamente (should_continue = true)
-    # Y además:
-    # 3. No se pidió omitir el Job 2 (inputs.skip_script2 = false)
     needs: [registro-asistencias-secundaria]
     if: |
       !inputs.skip_script2 && (
         inputs.skip_script1 || 
         needs.registro-asistencias-secundaria.outputs.should_continue == 'true'
       )
+    
+    # Definimos las variables para el Job 2 (repetimos las necesarias)
+    env:
+      RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
+      RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
+      RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
+      RDP03_INS1_DATABASE_URL: ${{ secrets.RDP03_INS1_DATABASE_URL }}
+      RDP03_INS2_DATABASE_URL: ${{ secrets.RDP03_INS2_DATABASE_URL }}
+      RDP03_INS3_DATABASE_URL: ${{ secrets.RDP03_INS3_DATABASE_URL }}
+      RDP03_INS4_DATABASE_URL: ${{ secrets.RDP03_INS4_DATABASE_URL }}
+      RDP03_INS5_DATABASE_URL: ${{ secrets.RDP03_INS5_DATABASE_URL }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+      RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
+      RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
+      LOGO_GOOGLE_DRIVE_IMAGE_ID: ${{ secrets.LOGO_GOOGLE_DRIVE_IMAGE_ID }}
+      SE01_SIASIS_EMAIL_USER: ${{ secrets.SE01_SIASIS_EMAIL_USER }}
+      SE01_SIASIS_EMAIL_APPLICATION_PASSWORD: ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
+      ENTORNO: ${{ secrets.ENTORNO }}
 
     steps:
-      - name: Mostrar razón de ejecución
-        run: |
-          echo "================================================"
-          echo "INICIO SCRIPT 2 - ANÁLISIS Y REPORTES"
-          echo "================================================"
-          if [ "${{ inputs.skip_script1 }}" == "true" ]; then
-            echo "Razón: Script 1 fue omitido manualmente"
-          elif [ "${{ needs.registro-asistencias-secundaria.outputs.should_continue }}" == "true" ]; then
-            echo "Razón: Script 1 completado exitosamente"
-            echo "Resultado anterior: ${{ needs.registro-asistencias-secundaria.outputs.execution_result }}"
-          fi
-          echo "================================================"
-
       - name: Checkout del repositorio
         uses: actions/checkout@v4
 
@@ -150,33 +140,15 @@ jobs:
           cache: "npm"
 
       - name: Instalar dependencias
-        run: npm install
+        run: npm install --ignore-scripts
+
+      - name: Generar Prisma Client
+        run: npx prisma generate
 
       - name: Ejecutar Script 2 - Análisis y Reportes
         run: |
-          echo "📊 Ejecutando análisis y generación de reportes..."
+          echo "📊 Ejecutando análisis y reportes..."
           npx ts-node ./src/jobs/asistenciaEscolar/AnalizarYEnviarReportesFaltasTardanzasEscolaresConsecutivas.ts S
-          echo "✅ Script 2 completado exitosamente"
-        env:
-          # Base de datos
-          RDP02_INS1_DATABASE_URL: ${{ secrets.RDP02_INS1_DATABASE_URL }}
-          RDP02_INS2_DATABASE_URL: ${{ secrets.RDP02_INS2_DATABASE_URL }}
-          RDP02_INS3_DATABASE_URL: ${{ secrets.RDP02_INS3_DATABASE_URL }}
-          RDP03_INS1_DATABASE_URL: ${{ secrets.RDP03_INS1_DATABASE_URL }}
-          RDP03_INS2_DATABASE_URL: ${{ secrets.RDP03_INS2_DATABASE_URL }}
-          RDP03_INS3_DATABASE_URL: ${{ secrets.RDP03_INS3_DATABASE_URL }}
-          RDP03_INS4_DATABASE_URL: ${{ secrets.RDP03_INS4_DATABASE_URL }}
-          RDP03_INS5_DATABASE_URL: ${{ secrets.RDP03_INS5_DATABASE_URL }}
-          # Google Drive
-          RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_EMAIL }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
-          RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID: ${{ secrets.RDP01_GOOGLE_SERVICE_ACCOUNT_PROJECT_ID }}
-          RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID: ${{ secrets.RDP01_GOOGLE_DRIVE_ROOT_SHARED_FOLDER_ID }}
-          LOGO_GOOGLE_DRIVE_IMAGE_ID: ${{ secrets.LOGO_GOOGLE_DRIVE_IMAGE_ID }}
-          # Correo electrónico
-          SE01_SIASIS_EMAIL_USER: ${{ secrets.SE01_SIASIS_EMAIL_USER }}
-          SE01_SIASIS_EMAIL_APPLICATION_PASSWORD: ${{ secrets.SE01_SIASIS_EMAIL_APPLICATION_PASSWORD }}
-          ENTORNO: ${{ secrets.ENTORNO }}
 
   # ============================================================
   # JOB 3: Notificación de Resultados
@@ -186,42 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [registro-asistencias-secundaria, analisis-reportes-secundaria]
     if: always()
-
     steps:
       - name: Resumen de Ejecución
         run: |
-          echo "================================================"
-          echo "RESUMEN DE EJECUCIÓN COMPLETA"
-          echo "================================================"
-
-          # Job 1
-          echo ""
-          echo "📋 JOB 1 - Registro de Asistencias:"
-          if [ "${{ inputs.skip_script1 }}" == "true" ]; then
-            echo "   Status: ⏭️ Omitido manualmente"
-          else
-            echo "   Status: ${{ needs.registro-asistencias-secundaria.result }}"
-            echo "   Resultado: ${{ needs.registro-asistencias-secundaria.outputs.execution_result }}"
-            
-            if [ "${{ needs.registro-asistencias-secundaria.outputs.execution_result }}" == "success" ]; then
-              echo "   ✅ Se procesaron asistencias correctamente"
-            elif [ "${{ needs.registro-asistencias-secundaria.outputs.execution_result }}" == "skipped" ]; then
-              echo "   ⏭️ Cancelado por validaciones (día evento/vacaciones/etc.)"
-            elif [ "${{ needs.registro-asistencias-secundaria.outputs.execution_result }}" == "error" ]; then
-              echo "   ❌ Falló con error técnico"
-            fi
-          fi
-
-          # Job 2
-          echo ""
-          echo "📊 JOB 2 - Análisis y Reportes:"
-          if [ "${{ inputs.skip_script2 }}" == "true" ]; then
-            echo "   Status: ⏭️ Omitido manualmente"
-          elif [ "${{ needs.analisis-reportes-secundaria.result }}" == "skipped" ]; then
-            echo "   Status: ⏭️ Omitido (Job 1 no se completó exitosamente)"
-          else
-            echo "   Status: ${{ needs.analisis-reportes-secundaria.result }}"
-          fi
-
-          echo ""
-          echo "================================================"
+          echo "Proceso finalizado. Job 1: ${{ needs.registro-asistencias-secundaria.result }}, Job 2: ${{ needs.analisis-reportes-secundaria.result }}"
