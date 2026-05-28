@@ -7,7 +7,7 @@ export function obtenerFechasActuales() {
   // Si el mock está habilitado, usamos la fecha mockeada
   const fechaUTC =
     ENTORNO === Entorno.LOCAL && FECHA_HORA_MOCKEADAS
-      ? generarFechaHoraMockeada(2025,10, 7, 9, 30, 0) // 12:30 UTC
+      ? generarFechaHoraMockeada(2025, 10, 7, 9, 30, 0) // 12:30 UTC
       : new Date();
 
   // Para la fecha local de Perú (UTC-5)
@@ -16,6 +16,11 @@ export function obtenerFechasActuales() {
   // CORRECCIÓN: Para UTC-5, RESTAMOS 5 horas al timestamp
   // No manipulamos componentes individuales
   fechaLocalPeru.setTime(fechaUTC.getTime() - 5 * 60 * 60 * 1000);
+
+  if (fechaLocalPeru.getHours() > 0 && fechaLocalPeru.getHours() < 2) {
+    fechaUTC.setDate(fechaUTC.getDate() - 1);
+    fechaLocalPeru.setDate(fechaLocalPeru.getDate() - 1);
+  }
 
   return { fechaUTC, fechaLocalPeru };
 }
