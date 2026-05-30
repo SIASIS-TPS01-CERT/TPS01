@@ -17,7 +17,7 @@ export function obtenerFechasActuales() {
   // No manipulamos componentes individuales
   fechaLocalPeru.setTime(fechaUTC.getTime() - 5 * 60 * 60 * 1000);
 
-  if (fechaLocalPeru.getHours() > 0 && fechaLocalPeru.getHours() < 2) {
+  if (fechaLocalPeru.getHours() >= 0 && fechaLocalPeru.getHours() < 2) {
     fechaUTC.setDate(fechaUTC.getDate() - 1);
     fechaLocalPeru.setDate(fechaLocalPeru.getDate() - 1);
   }
