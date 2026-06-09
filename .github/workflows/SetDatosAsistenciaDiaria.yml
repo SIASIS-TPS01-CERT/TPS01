@@ -7,6 +7,10 @@ on:
     # Solo en meses de marzo (3) a diciembre (12)
     - cron: "0 9 * 3-12 1-5"
 
+  # Ejecución desde solicitud HTTP externa
+  repository_dispatch:
+    types: [ejecucion-script-datos-asistencia-diaria]
+
   # Permite la ejecución manual para pruebas
   workflow_dispatch:
 
