@@ -5,6 +5,10 @@ on:
     # Ejecutar a las 7:45 PM hora de Perú (UTC-5) = 00:45 UTC del día siguiente
     - cron: "45 0 * 3-12 2-6"
 
+  # Ejecución desde solicitud HTTP externa
+  repository_dispatch:
+    types: [ejecucion-script-asistencias-y-faltas-de-estudiantes-secundaria]
+
   # Permite ejecución manual
   workflow_dispatch:
     inputs:

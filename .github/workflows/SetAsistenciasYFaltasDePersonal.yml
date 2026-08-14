@@ -6,6 +6,10 @@ on:
     # En GitHub Actions se usa UTC, por lo que 7:30 PM en Perú es 12:30 AM (00:30) UTC del día siguiente
     - cron: "30 0 * 3-12 2-6"
 
+  # Ejecución desde solicitud HTTP externa
+  repository_dispatch:
+    types: [ejecucion-script-asistencias-y-faltas-de-personal]
+
   # Permite la ejecución manual para pruebas
   workflow_dispatch:
 

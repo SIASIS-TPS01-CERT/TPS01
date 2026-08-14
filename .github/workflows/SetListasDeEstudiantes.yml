@@ -4,6 +4,11 @@ on:
   schedule:
     # Ejecutar a las 4:30 AM hora de Perú (UTC-5) de lunes a viernes
     - cron: "30 9 * 3-12 1-5"
+  
+  # Ejecución desde solicitud HTTP externa
+  repository_dispatch:
+    types: [ejecucion-script-listas-estudiantes]
+  
   workflow_dispatch:
 
 jobs:
