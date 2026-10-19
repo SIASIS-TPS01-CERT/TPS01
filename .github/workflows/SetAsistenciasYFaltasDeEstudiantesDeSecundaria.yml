@@ -1,9 +1,9 @@
 name: Procesamiento Completo de Asistencias Secundaria
 
 on:
-  schedule:
+  # schedule:
     # Ejecutar a las 7:45 PM hora de Perú (UTC-5) = 00:45 UTC del día siguiente
-    - cron: "45 0 * 3-12 2-6"
+    # - cron: "45 0 * 3-12 2-6"
 
   # Ejecución desde solicitud HTTP externa
   repository_dispatch:

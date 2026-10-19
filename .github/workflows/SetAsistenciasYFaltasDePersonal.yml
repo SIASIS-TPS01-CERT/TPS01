@@ -1,10 +1,10 @@
 name: Ejecutar Script de registro de asistencias y faltas de Personal Diarias
 
 on:
-  schedule:
+  # schedule:
     # Ejecutar a las 7:30 PM hora de Perú (UTC-5) de lunes a viernes
     # En GitHub Actions se usa UTC, por lo que 7:30 PM en Perú es 12:30 AM (00:30) UTC del día siguiente
-    - cron: "30 0 * 3-12 2-6"
+    # - cron: "30 0 * 3-12 2-6"
 
   # Ejecución desde solicitud HTTP externa
   repository_dispatch:
